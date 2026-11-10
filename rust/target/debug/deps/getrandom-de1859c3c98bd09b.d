@@ -1,0 +1,10 @@
+G:\Windows\antigravity_manager\rust\target\debug\deps\getrandom-de1859c3c98bd09b.d: C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\lib.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\backends.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\error.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\util.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\../README.md C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\backends\windows.rs
+
+G:\Windows\antigravity_manager\rust\target\debug\deps\libgetrandom-de1859c3c98bd09b.rmeta: C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\lib.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\backends.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\error.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\util.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\../README.md C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\backends\windows.rs
+
+C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\lib.rs:
+C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\backends.rs:
+C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\error.rs:
+C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\util.rs:
+C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\../README.md:
+C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\getrandom-0.4.3\src\backends\windows.rs:

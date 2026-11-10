@@ -1,0 +1,9 @@
+G:\Windows\antigravity_manager\rust\target\debug\deps\hyper_rustls-47b8000497ed02bc.d: C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\lib.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\config.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\connector.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\connector\builder.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\stream.rs
+
+G:\Windows\antigravity_manager\rust\target\debug\deps\libhyper_rustls-47b8000497ed02bc.rmeta: C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\lib.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\config.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\connector.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\connector\builder.rs C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\stream.rs
+
+C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\lib.rs:
+C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\config.rs:
+C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\connector.rs:
+C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\connector\builder.rs:
+C:\Users\SjjadKarimi\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\hyper-rustls-0.27.10\src\stream.rs:

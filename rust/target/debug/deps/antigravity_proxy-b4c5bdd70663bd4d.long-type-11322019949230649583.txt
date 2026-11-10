@@ -1,0 +1,2 @@
+fn(State<ProxyState>, axum::extract::Path<std::string::String>) -> impl futures::Future<Output = Response<Body>> {get_model}
+fn(State<ProxyState>, axum::extract::Path<std::string::String>) -> impl futures::Future<Output = Response<Body>> {get_model}: Handler<_, _>

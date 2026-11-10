@@ -1,0 +1,16 @@
+[package]
+name = "antigravity-google"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Adapter for the Google Cloud Code endpoints used by Antigravity Manager"
+
+[dependencies]
+antigravity-core = { path = "../core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }

@@ -1,0 +1,19 @@
+[package]
+name = "antigravity-proxy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "The local API proxy of Antigravity Manager: OpenAI and Anthropic compatible endpoints"
+
+[dependencies]
+antigravity-core = { path = "../core" }
+antigravity-google = { path = "../google" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+futures = { workspace = true }
+reqwest = { workspace = true }
+axum = { workspace = true }
+uuid = { workspace = true }

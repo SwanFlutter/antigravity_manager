@@ -1,0 +1,1 @@
+fn(State<ProxyState>) -> impl futures::Future<Output = Json<Value>> {list_models}: Handler<_, _>

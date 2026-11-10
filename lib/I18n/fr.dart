@@ -1,0 +1,376 @@
+import 'messages.dart';
+import 'translations.dart';
+
+class French implements AppTranslationsKeys {
+  @override
+  Map<String, String> get keys => {
+        // App
+        Messages.appName: 'Antigravity Manager',
+        Messages.appTagline: 'Centre de contrôle des comptes IA et des API',
+
+        // Navigation
+        Messages.navAccounts: 'Comptes',
+        Messages.navWorkspaces: 'Espaces de travail',
+        Messages.navApiProxy: 'Proxy API',
+        Messages.navPlayground: 'Bac à sable',
+        Messages.navTraffic: 'Trafic',
+        Messages.navSettings: 'Paramètres',
+        Messages.navPool: 'Pool de comptes',
+        Messages.navTools: 'Outils',
+
+        // Sidebar
+        Messages.sidebarCollapse: 'Réduire la barre latérale',
+        Messages.sidebarExpand: 'Déplier la barre latérale',
+        Messages.sidebarServices: 'Services',
+        Messages.sidebarServicesRunning: '{n} services sur {m} en cours d\'exécution',
+        Messages.sidebarStart: 'Démarrer',
+        Messages.sidebarStop: 'Arrêter',
+
+        // Common
+        Messages.commonSearch: 'Rechercher',
+        Messages.commonCancel: 'Annuler',
+        Messages.commonSave: 'Enregistrer',
+        Messages.commonSaveChanges: 'Enregistrer les modifications',
+        Messages.commonCopy: 'Copier',
+        Messages.commonCopied: 'Copié dans le presse-papiers',
+        Messages.commonRegenerate: 'Régénérer',
+        Messages.commonResetDefaults: 'Rétablir les valeurs par défaut',
+        Messages.commonReset: 'Réinitialiser',
+        Messages.commonLoading: 'Chargement',
+        Messages.commonError: 'Une erreur est survenue',
+        Messages.commonRetry: 'Réessayer',
+        Messages.commonClear: 'Effacer',
+        Messages.commonExport: 'Exporter',
+        Messages.commonImport: 'Importer',
+        Messages.commonSelectAll: 'Tout sélectionner',
+        Messages.commonAll: 'Tous',
+        Messages.commonNone: 'Aucun',
+        Messages.commonEnabled: 'Activé',
+        Messages.commonDisabled: 'Désactivé',
+        Messages.commonMore: 'Plus',
+        Messages.commonRefresh: 'Actualiser',
+        Messages.commonApply: 'Appliquer',
+        Messages.commonClose: 'Fermer',
+        Messages.commonAdd: 'Ajouter',
+        Messages.commonRemove: 'Retirer',
+        Messages.commonEdit: 'Modifier',
+        Messages.commonRename: 'Renommer',
+        Messages.commonDuplicate: 'Dupliquer',
+        Messages.commonDelete: 'Supprimer',
+        Messages.commonOpenFolder: 'Ouvrir le dossier',
+        Messages.commonUnknown: 'Inconnu',
+        Messages.commonShow: 'Afficher',
+        Messages.commonHide: 'Masquer',
+        Messages.commonRunning: 'En cours d\'exécution',
+        Messages.commonStopped: 'Arrêté',
+
+        // Accounts
+        Messages.accountsTitle: 'Comptes',
+        Messages.accountsDesc:
+            'Gérez les comptes fournisseurs qui alimentent le pool de modèles.',
+        Messages.accountsTotal: 'Total des comptes',
+        Messages.accountsActive: 'Actif',
+        Messages.accountsRateLimited: 'Quota de débit atteint',
+        Messages.accountsGlobalQuota: 'Quota global',
+        Messages.accountsAutoSwitch: 'Changer automatiquement de compte client',
+        Messages.accountsAutoSwitchHint:
+            'Passer au compte suivant en bon état lorsque l\'actuel est épuisé.',
+        Messages.accountsImportLocal: 'Importer depuis cet ordinateur',
+        Messages.accountsExport: 'Exporter',
+        Messages.accountsImport: 'Importer',
+        Messages.accountsAddAccount: 'Ajouter un compte',
+        Messages.accountsConnectTitle: 'Connecter un compte Google',
+        Messages.accountsConnectWaiting:
+            'En attente du retour du navigateur avec l’autorisation.',
+        Messages.accountsConnectDone: 'Le compte est connecté.',
+        Messages.accountsConnectFailed: 'La connexion a échoué.',
+        Messages.accountsConnectManual: 'Ou coller le code à la main',
+        Messages.accountsConnectSubmit: 'Terminer',
+        Messages.accountsRefreshQuota: 'Actualiser le quota',
+        Messages.accountsAllTiers: 'Tous les paliers',
+        Messages.accountsMinimalMode: 'Mode minimal',
+        Messages.accountsQuotaDisplay: 'Affichage des quotas',
+        Messages.accountsUse: 'Utiliser',
+        Messages.accountsInUse: 'En cours d\'utilisation',
+        Messages.accountsNotInUse: 'Non utilisé',
+        Messages.accountsRecommendedNext: 'Recommandé ensuite',
+        Messages.accountsSample: 'Exemple',
+        Messages.accountsCredits: '{n} crédits',
+        Messages.accountsReset: 'Réinitialisation\u00A0: {t}',
+        Messages.accountsWeeklyQuota: 'Quota hebdomadaire',
+        Messages.accountsWeeklyRemaining: 'Reste de la limite hebdomadaire',
+        Messages.accountsWeeklyUsed: '{n} % de la semaine utilisés',
+        Messages.accountsGroupGemini: 'Modèles Gemini',
+        Messages.accountsGroupClaudeGpt: 'Modèles Claude et GPT',
+        Messages.accountsSelectAll: 'Tout sélectionner',
+        Messages.accountsEmpty: 'Aucun compte pour l\'instant',
+        Messages.accountsEmptyMessage:
+            'Ajoutez un compte pour commencer à router les requêtes via le pool.',
+        Messages.accountsModelFamilies: 'Familles de modèles',
+        Messages.accountsAutoSwitchModel:
+            'Changer automatiquement quand le quota est épuisé',
+        Messages.accountsQuotaWindow: 'Fenêtre de quota',
+        Messages.accountsQuotaWindow5h: '5 dernières heures',
+        Messages.accountsQuotaWindowWeek: 'Cette semaine',
+        Messages.accountsQuotaWindowBoth: 'Les deux',
+        Messages.accountsMoreActions: 'Autres actions',
+        Messages.accountsOpenInPlayground: 'Ouvrir dans le bac à sable',
+        Messages.accountsCopyAccountId: 'Copier l\'identifiant du compte',
+        Messages.accountsRemoveAccount: 'Retirer le compte',
+        Messages.accountsQuotaSummary: 'Résumé des quotas',
+        Messages.accountsMinimalHint:
+            'Désactivez le mode minimal pour voir le quota de chaque modèle.',
+        Messages.accountsCreditsUnit: 'crédits',
+        Messages.accountsTotalHint: 'Prêt à router les requêtes',
+        Messages.accountsActiveHint: 'Sert le trafic en ce moment',
+        Messages.accountsRateLimitedHint: 'En attente de la fenêtre de quota',
+        Messages.accountsGlobalQuotaHint: 'Moyenne sur tous les modèles',
+        Messages.accountsPoolCount: '{n} comptes',
+
+        // Workspaces
+        Messages.workspacesTitle: 'Espaces de travail',
+        Messages.workspacesDesc:
+            'Sessions isolées liées à un compte et à un dossier de projet.',
+        Messages.workspacesSearch: 'Rechercher par nom, dossier ou compte',
+        Messages.workspacesNew: 'Nouvel espace de travail',
+        Messages.workspacesBoundAccount: 'Compte associé',
+        Messages.workspacesProjectFolder: 'Dossier de projet',
+        Messages.workspacesIsolatedProfile: 'Profil isolé',
+        Messages.workspacesLaunch: 'Lancer l\'IDE',
+        Messages.workspacesLastActive: 'Dernière activité',
+        Messages.workspacesUnbound: 'Non associé',
+        Messages.workspacesEmpty: 'Aucun espace de travail pour l\'instant',
+        Messages.workspacesEmptyMessage:
+            'Créez un espace de travail pour exécuter une session isolée sur un projet.',
+        Messages.workspacesOpenFolder: 'Ouvrir le dossier de projet',
+        Messages.workspacesDetach: 'Détacher le compte',
+        Messages.workspacesRevealProfile: 'Afficher les données du profil',
+
+        // API Proxy
+        Messages.proxyTitle: 'Proxy API',
+        Messages.proxyDesc:
+            'Exécutez une passerelle locale compatible OpenAI au-dessus de tout le pool de comptes.',
+        Messages.proxyServiceStatus: 'État du service',
+        Messages.proxyStart: 'Démarrer le service',
+        Messages.proxyStop: 'Arrêter le service',
+        Messages.proxyRunning: 'En cours d\'exécution',
+        Messages.proxyStopped: 'Arrêté',
+        Messages.proxyLocalAccess: 'Accès au réseau local',
+        Messages.proxyListenPort: 'Port d\'écoute',
+        Messages.proxyRequestTimeout: 'Délai d\'expiration des requêtes',
+        Messages.proxyApiKey: 'Clé API',
+        Messages.proxyRegenerate: 'Régénérer',
+        Messages.proxyAutoStart: 'Démarrage automatique avec l\'application',
+        Messages.proxyAutoStartHint:
+            'Démarrer le proxy au lancement de l\'application.',
+        Messages.proxyTabTools: 'Outils',
+        Messages.proxyTabModels: 'Modèles',
+        Messages.proxyTabRecords: 'Enregistrements',
+        Messages.proxyTabExamples: 'Exemples',
+        Messages.proxyModelMapping: 'Mappage des modèles',
+        Messages.proxyModelMappingDesc:
+            'Choisissez le modèle amont qui traite chaque requête entrante.',
+        Messages.proxyOnlyListed: 'Lister uniquement les modèles de vos comptes',
+        Messages.proxyOnlyListedHint:
+            'Les outils connectés ne voient que les noms de modèles issus des dernières vérifications de quota.',
+        Messages.proxyMapsTo: 'Est mappé vers',
+        Messages.proxyRestoreDefaults: 'Rétablir les valeurs par défaut',
+        Messages.proxyPortUnit: 'port',
+        Messages.proxyTimeoutUnit: 'secondes',
+        Messages.proxyProtocolOpenAI: 'Protocole OpenAI',
+        Messages.proxyProtocolOpenAIHint: 'Cursor, Windsurf, NextChat',
+        Messages.proxyProtocolAnthropic: 'Protocole Anthropic',
+        Messages.proxyProtocolAnthropicHint: 'Claude Code CLI',
+        Messages.proxyExampleModel: 'Modèle',
+        Messages.proxyExampleModelHint:
+            'Tous les modèles que la passerelle peut servir. La sélection met à jour l’identifiant dans les exemples.',
+        Messages.proxyExampleCurl: 'cURL',
+        Messages.proxyExamplePython: 'Python',
+        Messages.proxyExampleNode: 'Node.js',
+
+        // Playground
+        Messages.playgroundTitle: 'Bac à sable des modèles',
+        Messages.playgroundDesc:
+            'Exécutez des prompts de test sur un compte, sur tout le pool ou sur deux modèles côte à côte.',
+        Messages.playgroundTabSingle: 'Compte unique',
+        Messages.playgroundTabCompare: 'Comparaison multi-comptes',
+        Messages.playgroundTabBenchmark: 'Benchmark des comptes',
+        Messages.playgroundTabDual: 'Deux modèles',
+        Messages.playgroundTargetAccount: 'Compte cible',
+        Messages.playgroundAutoPool:
+            'Auto (utiliser la stratégie de routage du pool)',
+        Messages.playgroundModel: 'Modèle',
+        Messages.playgroundPresets: 'Préréglages',
+        Messages.playgroundAdvanced: 'Paramètres avancés',
+        Messages.playgroundPrompt: 'Prompt',
+        Messages.playgroundClear: 'Effacer',
+        Messages.playgroundRun: 'Lancer le prompt',
+        Messages.playgroundOnlyVisible: 'Modèles visibles uniquement',
+        Messages.playgroundGatewayOnline: 'Passerelle en ligne',
+        Messages.playgroundTemperature: 'Température',
+        Messages.playgroundTopP: 'Top P',
+        Messages.playgroundMaxTokens: 'Nombre maximal de tokens',
+        Messages.playgroundStream: 'Diffuser la réponse en continu',
+        Messages.playgroundCompareHint:
+            'Envoyez le même prompt à plusieurs comptes et comparez les réponses.',
+        Messages.playgroundBenchmarkHint:
+            'Mesurez la latence et le coût en tokens d\'un prompt sur l\'ensemble du pool.',
+        Messages.playgroundDualHint:
+            'Envoyez un prompt à deux modèles différents et lisez les deux réponses.',
+        Messages.playgroundLatency: 'Latence',
+        Messages.playgroundTokens: 'Tokens',
+        Messages.playgroundEstimatedCost: 'Coût estimé',
+        Messages.playgroundSecondModel: 'Deuxième modèle',
+
+        // Traffic
+        Messages.trafficTitle: 'Trafic',
+        Messages.trafficDesc:
+            'Consultez chaque requête passée par la passerelle locale.',
+        Messages.trafficRecords: '{n} enregistrements',
+        Messages.trafficSearch: 'Rechercher par modèle, ID de requête ou compte',
+        Messages.trafficFrom: 'Du',
+        Messages.trafficTo: 'Au',
+        Messages.trafficIncludeKey:
+            'Inclure la clé proxy actuelle dans le cURL copié',
+        Messages.trafficClearCategory: 'Effacer la catégorie',
+        Messages.trafficAccount: 'Compte',
+        Messages.trafficModelFamily: 'Famille de modèles',
+        Messages.trafficOutput: 'Sortie',
+        Messages.trafficStatus: 'Statut',
+        Messages.trafficAllAccounts: 'Tous les comptes',
+        Messages.trafficAllFamilies: 'Toutes les familles de modèles',
+        Messages.trafficAllOutputs: 'Toutes les sorties',
+        Messages.trafficAllStatuses: 'Tous les statuts',
+        Messages.trafficTime: 'Heure',
+        Messages.trafficModelUsed: 'Modèle utilisé',
+        Messages.trafficTokens: 'Tokens entrée / sortie',
+        Messages.trafficResult: 'Résultat',
+        Messages.trafficDuration: 'Durée',
+        Messages.trafficEndpoint: 'Adresse du service',
+        Messages.trafficTotal: '{n} au total',
+        Messages.trafficPage: 'Page {n}',
+        Messages.trafficEmpty: 'Rien d\'enregistré pour l\'instant',
+        Messages.trafficEmptyMessage:
+            'Les requêtes apparaissent ici dès que le proxy les traite.',
+        Messages.trafficCopyCurl: 'Copier au format cURL',
+        Messages.trafficClearLog: 'Effacer le journal',
+
+        // Settings
+        Messages.settingsTitle: 'Paramètres',
+        Messages.settingsDesc:
+            'Apparence, comportement des comptes, démarrage et passerelle locale.',
+        Messages.settingsTabGeneral: 'Général',
+        Messages.settingsTabModels: 'Modèles',
+        Messages.settingsTabProxy: 'Proxy',
+        Messages.settingsAppearance: 'Apparence',
+        Messages.settingsAppearanceDesc: 'Thème et densité de l\'interface.',
+        Messages.settingsTheme: 'Thème',
+        Messages.settingsThemeDesc: 'Basculer entre la palette sombre et claire.',
+        Messages.settingsThemeDark: 'Sombre',
+        Messages.settingsThemeLight: 'Clair',
+        Messages.settingsThemeSystem: 'Système',
+        Messages.settingsLanguage: 'Langue',
+        Messages.settingsLanguageDesc:
+            'Langue de l\'interface. L\'arabe et le persan utilisent une mise en page de droite à gauche.',
+        Messages.settingsDensity: 'Densité',
+        Messages.settingsDensityDesc: 'Espacement plus serré et contrôles plus petits.',
+        Messages.settingsDensityCompact: 'Compacte',
+        Messages.settingsDensityComfortable: 'Confortable',
+        Messages.settingsReduceMotion: 'Réduire les animations',
+        Messages.settingsReduceMotionDesc:
+            'Limiter les indicateurs pulsants et les transitions de panneaux.',
+        Messages.settingsAccountBehaviour: 'Comportement des comptes',
+        Messages.settingsAccountBehaviourDesc:
+            'La façon dont le pool choisit un compte pour une requête.',
+        Messages.settingsAutoSwitch: 'Changer automatiquement de compte client',
+        Messages.settingsAutoSwitchDesc:
+            'Passer au compte suivant en bon état lorsque l\'actuel est épuisé.',
+        Messages.settingsMinimalMode: 'Mode minimal',
+        Messages.settingsMinimalModeDesc:
+            'Masquer les détails de quota tant qu\'une carte n\'est pas sélectionnée.',
+        Messages.settingsQuotaWindow: 'Fenêtre de quota',
+        Messages.settingsQuotaWindowDesc:
+            'Quelle fenêtre de réinitialisation les compteurs de quota suivent.',
+        Messages.settingsStartup: 'Démarrage',
+        Messages.settingsStartupDesc:
+            'Ce qui se passe au lancement de l\'application.',
+        Messages.settingsLaunchOnBoot: 'Lancer au démarrage du système',
+        Messages.settingsLaunchOnBootDesc:
+            'Ouvrir le gestionnaire lorsque vous vous connectez au bureau.',
+        Messages.settingsAutoStartProxy: 'Démarrer le proxy avec l\'application',
+        Messages.settingsAutoStartProxyDesc:
+            'Démarrer la passerelle locale dès que le gestionnaire s\'ouvre.',
+        Messages.settingsProxy: 'Proxy',
+        Messages.settingsProxyDesc: 'Réseau et identifiants de la passerelle.',
+        Messages.settingsBindAddress: 'Adresse d\'écoute',
+        Messages.settingsBindAddressDesc:
+            'L\'interface que les autres appareils du réseau atteignent.',
+        Messages.settingsAllowLan: 'Autoriser l\'accès au réseau local',
+        Messages.settingsAllowLanDesc:
+            'Servir la passerelle aux appareils du même réseau.',
+        Messages.settingsMaskKey: 'Masquer la clé dans l\'interface',
+        Messages.settingsMaskKeyDesc:
+            'Cacher la clé API jusqu\'à ce que vous demandiez à la révéler.',
+        Messages.settingsModelVisibility: 'Visibilité des modèles',
+        Messages.settingsModelVisibilityDesc:
+            'Contrôlez les modèles qui apparaissent dans les cartes de compte.',
+        Messages.settingsVisibleModels: '{n} modèles',
+        Messages.settingsSearchModels: 'Rechercher des modèles',
+        Messages.settingsProviderGrouping: 'Activer les groupes de fournisseurs',
+        Messages.settingsProviderGroupingDesc:
+            'Grouper les modèles par fournisseur pour faciliter la lecture.',
+        Messages.settingsTotal: 'Total',
+        Messages.settingsVisible: 'Visible',
+        Messages.settingsHidden: 'Masqué',
+        Messages.settingsPrivacy: 'Confidentialité',
+        Messages.settingsPrivacyDesc:
+            'Ce que l\'application envoie et stocke.',
+        Messages.settingsTelemetry: 'Partager des données d\'utilisation anonymes',
+        Messages.settingsTelemetryDesc:
+            'Envoyer uniquement des compteurs, jamais de prompts ni d\'identifiants.',
+        Messages.settingsClearTraffic: 'Effacer le journal des requêtes stocké',
+        Messages.settingsClearTrafficDesc:
+            'Supprimer de cet ordinateur toutes les requêtes enregistrées.',
+        Messages.settingsClearTrafficAction: 'Effacer le journal',
+        Messages.settingsNotifications: 'Notifications',
+        Messages.settingsNotificationsDesc:
+            'Alertes de bureau pour les événements de compte.',
+        Messages.settingsLowQuota: 'Alertes de quota faible',
+        Messages.settingsLowQuotaDesc:
+            'Être averti lorsqu\'un quota de modèle passe sous le seuil.',
+        Messages.settingsThreshold: 'Seuil d\'alerte',
+        Messages.settingsThresholdDesc:
+            'Pourcentage sous lequel une alerte est déclenchée.',
+        Messages.settingsCreditsAlert: 'Alerte de crédits IA faibles',
+        Messages.settingsCreditsAlertDesc:
+            'Être averti lorsque le solde de crédits descend au montant défini.',
+        Messages.settingsCreditsThreshold: 'Seuil d\'alerte des crédits IA',
+        Messages.settingsCreditsThresholdDesc:
+            'Montant de crédits auquel ou en dessous duquel déclencher une alerte.',
+        Messages.settingsAbout: 'À propos',
+        Messages.settingsAboutDesc:
+            'Informations de version et d\'exécution.',
+        Messages.settingsVersion: 'Version',
+        Messages.settingsBuild: 'Build',
+        Messages.settingsStorage: 'Stockage',
+        Messages.settingsStorageDesc:
+            'Où sont conservés les paramètres et le journal des requêtes.',
+        Messages.settingsLicences: 'Licences',
+        Messages.settingsReset: 'Rétablir les valeurs par défaut',
+        Messages.settingsSaved: 'Modifications enregistrées',
+        Messages.settingsPercent: 'pour cent',
+        Messages.settingsCreditsUnit: 'crédits',
+        Messages.proxyTabGateway: 'Passerelle',
+        Messages.proxyGatewayStatus: 'État',
+        Messages.proxyGatewayRunning: 'La passerelle écoute.',
+        Messages.proxyGatewayStopped: "La passerelle n'est pas démarrée.",
+        Messages.proxyGatewayKey: 'Clé API',
+        Messages.proxyGatewayKeyHint:
+            'Les outils de code envoient cette clé avec chaque requête.',
+        Messages.proxyGatewayRotate: 'Nouvelle clé',
+        Messages.proxyGatewayStart: 'Démarrer la passerelle',
+        Messages.proxyGatewayStop: 'Arrêter la passerelle',
+        Messages.proxyGatewayTraffic: 'Trafic',
+        Messages.proxyGatewayEmpty: "Aucune requête n'est encore passée.",
+      };
+}

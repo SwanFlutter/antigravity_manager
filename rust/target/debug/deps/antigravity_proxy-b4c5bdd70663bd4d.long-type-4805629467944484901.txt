@@ -1,0 +1,2 @@
+fn(State<ProxyState>, HeaderMap, axum::body::Bytes) -> impl futures::Future<Output = Response<Body>> {messages}
+fn(State<ProxyState>, HeaderMap, axum::body::Bytes) -> impl futures::Future<Output = Response<Body>> {messages}: Handler<_, _>

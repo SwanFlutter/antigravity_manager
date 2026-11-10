@@ -1,0 +1,32 @@
+[package]
+name = "antigravity-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Windows desktop host exposing the Antigravity Manager application contract over a private named pipe"
+
+[lib]
+name = "antigravity_host"
+path = "src/lib.rs"
+
+[[bin]]
+name = "antigravity-host"
+path = "src/main.rs"
+
+[dependencies]
+antigravity-contract = { path = "../contract" }
+antigravity-core = { path = "../core" }
+antigravity-google = { path = "../google" }
+antigravity-proxy = { path = "../proxy" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+axum = { workspace = true }
+uuid = { workspace = true }
+rusqlite = { workspace = true }
+
+[dev-dependencies]
+reqwest = { workspace = true }
