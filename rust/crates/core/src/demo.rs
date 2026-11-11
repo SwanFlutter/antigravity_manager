@@ -8,7 +8,7 @@
 use crate::domain::{
     Account, AccountStatus, Model, ModelFamily, ModelGroup, ModelQuota, WeeklyQuota,
 };
-use crate::repository::AccountRepository;
+use crate::repository::{AccountRepository, CloudRepository, RepositoryError};
 use crate::sqlite::SqliteAccountRepository;
 
 /// The model catalog the gateway can route to.
@@ -241,6 +241,8 @@ fn build_account(
         selected: false,
         // Every account of the synthetic dataset is a sample.
         demo: true,
+        quota_fetched_at: None,
+        quota_error: None,
         quotas,
         weekly_quotas,
     }
@@ -248,6 +250,11 @@ fn build_account(
 
 /// Writes the demo dataset into an empty profile.
 pub fn seed_demo(repository: &SqliteAccountRepository) -> Result<(), crate::repository::RepositoryError> {
+    if repository.list_accounts()?.iter().any(|account| !account.demo)
+        || !repository.list_credential_accounts()?.is_empty()
+    {
+        return Err(RepositoryError::Invalid("refusing to seed demos in a profile with real accounts".to_string()));
+    }
     let catalog = model_catalog();
     let groups = model_groups();
 

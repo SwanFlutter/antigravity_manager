@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:antigravity_manager/app/controller/api_proxy_controller.dart';
 import 'package:antigravity_manager/app/controller/app_controller.dart';
+import 'package:antigravity_manager/app/controller/playground_controller.dart';
 import 'package:antigravity_manager/app/controller/theme_controller.dart';
 import 'package:antigravity_manager/main.dart';
 import 'package:flutter/material.dart';
@@ -89,6 +90,9 @@ void main() {
     await shoot(tester, 1, 'workspaces_dark');
     await shoot(tester, 2, 'api_proxy_dark');
     await shoot(tester, 3, 'playground_dark');
+    Get.find<PlaygroundController>().tab.value = PlaygroundTab.compare;
+    await shoot(tester, 3, 'playground_compare_dark');
+    Get.find<PlaygroundController>().tab.value = PlaygroundTab.single;
     await shoot(tester, 4, 'traffic_dark');
     await shoot(tester, 5, 'settings_dark');
   });
@@ -169,7 +173,6 @@ void main() {
 
     final theme = Get.find<ThemeController>();
     theme.setDarkMode();
-    theme.setLocale(const Locale('fa', 'IR'));
 
     await tester.pumpWidget(const AntigravityApp());
     await tester.pump();

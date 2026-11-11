@@ -5,7 +5,9 @@
 //! with recorded payloads.
 
 use antigravity_core::cloud::{format_reset_label, QuotaBucket, QuotaGroup};
-use antigravity_core::domain::{ModelFamily, ModelQuota};
+use antigravity_core::domain::{Model, ModelFamily, ModelQuota};
+use std::collections::{HashMap, HashSet};
+use crate::GoogleError;
 use serde_json::Value;
 
 use crate::time::parse_rfc3339_millis;
@@ -26,25 +28,20 @@ pub struct ProjectContext {
 pub fn map_project_context(payload: &Value) -> ProjectContext {
     let project_id = payload
         .get("cloudaicompanionProject")
-        .and_then(Value::as_str)
+        .and_then(|project| project.as_str().or_else(|| project.get("id")?.as_str()))
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string);
 
     let paid_tier = payload.get("paidTier");
-    let plan = paid_tier
-        .and_then(|tier| tier.get("name"))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-        .or_else(|| {
-            paid_tier
-                .and_then(|tier| tier.get("id"))
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .map(str::to_string)
+    let plan = [paid_tier, payload.get("currentTier")]
+        .into_iter()
+        .flatten()
+        .find_map(|tier| {
+            ["name", "id"].into_iter().find_map(|key| {
+                tier.get(key)?.as_str().map(str::trim)
+                    .filter(|value| !value.is_empty()).map(str::to_string)
+            })
         });
 
     let credits = payload
@@ -98,49 +95,67 @@ pub fn model_family_for(model_id: &str) -> Option<ModelFamily> {
     }
 }
 
-/// Maps the answer of `v1internal:fetchAvailableModels` onto model quotas.
-///
-/// The name of a quota is the display name of the model, or its id when the
-/// upstream sends no display name. The reset label is formatted the way the
-/// interface shows it.
-pub fn map_model_quotas(payload: &Value, now_millis: i64) -> Vec<ModelQuota> {
-    let Some(models) = payload.get("models").and_then(Value::as_object) else {
-        return Vec::new();
-    };
+/// Catalog and known quotas from a single `fetchAvailableModels` response.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModelQuotaSnapshot {
+    pub models: Vec<Model>,
+    pub quotas: Vec<ModelQuota>,
+}
 
+/// Maps actual provider ids and labels separately from unique quota row names.
+/// Unknown fractions are omitted, not interpreted as exhausted quotas.
+pub fn map_model_quotas(payload: &Value, now_millis: i64) -> Result<ModelQuotaSnapshot, GoogleError> {
+    let entries = payload.get("models").and_then(Value::as_object)
+        .ok_or_else(|| GoogleError::Malformed("models must be an object".to_string()))?;
+    if entries.iter().any(|(id, info)| id.trim().is_empty() || !info.is_object()) {
+        return Err(GoogleError::Malformed("models must contain model objects with nonempty ids".to_string()));
+    }
+    let models: Vec<Model> = entries.iter().filter_map(|(id, info)| {
+        Some(Model {
+            id: id.clone(),
+            label: info.get("displayName").and_then(Value::as_str)
+                .map(str::trim).filter(|label| !label.is_empty())
+                .unwrap_or(id).to_string(),
+            family: model_family_for(id)?,
+        })
+    }).collect();
+    let mut counts = HashMap::new();
+    for model in &models {
+        *counts.entry(model.label.as_str()).or_insert(0) += 1;
+    }
+    // Reserve original labels too: a provider label may itself look like a
+    // disambiguated name. Never let it collide with a generated quota key.
+    let mut used: HashSet<String> = models.iter().map(|model| model.label.clone()).collect();
     let mut quotas = Vec::new();
-    for (model_id, info) in models {
-        let Some(family) = model_family_for(model_id) else {
+    for model in &models {
+        let mut name = model.label.clone();
+        if counts[model.label.as_str()] > 1 {
+            loop {
+                name = format!("{name} ({})", model.id);
+                if used.insert(name.clone()) {
+                    break;
+                }
+            }
+        }
+        let quota = &entries[&model.id]["quotaInfo"];
+        let Some(remaining) = quota.get("remainingFraction").and_then(parse_fraction) else {
             continue;
         };
-
-        let name = info
-            .get("displayName")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or(model_id.as_str())
-            .to_string();
-
-        let quota_info = info.get("quotaInfo");
-        let remaining = quota_info
-            .and_then(|quota| quota.get("remainingFraction"))
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0);
-        let reset_at = quota_info
-            .and_then(|quota| quota.get("resetTime"))
-            .and_then(Value::as_str)
+        let reset_at = quota.get("resetTime").and_then(Value::as_str)
             .and_then(parse_rfc3339_millis);
-
         quotas.push(ModelQuota {
             name,
-            family,
+            family: model.family,
             remaining,
             reset_label: format_reset_label(reset_at, now_millis),
         });
     }
+    Ok(ModelQuotaSnapshot { models, quotas })
+}
 
-    quotas
+fn parse_fraction(value: &Value) -> Option<f64> {
+    let fraction = value.as_f64().or_else(|| value.as_str()?.trim().parse::<f64>().ok())?;
+    (fraction.is_finite() && (0.0..=1.0).contains(&fraction)).then_some(fraction)
 }
 
 /// Maps the answer of `v1internal:retrieveUserQuotaSummary` onto quota groups.
@@ -166,7 +181,7 @@ pub fn map_quota_groups(payload: &Value) -> Vec<QuotaGroup> {
             let buckets = group
                 .get("buckets")
                 .and_then(Value::as_array)
-                .map(|buckets| buckets.iter().map(map_quota_bucket).collect())
+                .map(|buckets| buckets.iter().filter_map(map_quota_bucket).collect())
                 .unwrap_or_default();
 
             QuotaGroup { id, label, buckets }
@@ -175,7 +190,7 @@ pub fn map_quota_groups(payload: &Value) -> Vec<QuotaGroup> {
 }
 
 /// Maps one bucket of a quota group.
-fn map_quota_bucket(bucket: &Value) -> QuotaBucket {
+fn map_quota_bucket(bucket: &Value) -> Option<QuotaBucket> {
     let bucket_id = bucket
         .get("bucketId")
         .and_then(Value::as_str)
@@ -186,10 +201,7 @@ fn map_quota_bucket(bucket: &Value) -> QuotaBucket {
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
-    let remaining = bucket
-        .get("remainingFraction")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
+    let remaining = bucket.get("remainingFraction").and_then(parse_fraction)?;
     let reset_at = bucket
         .get("resetTime")
         .and_then(Value::as_str)
@@ -202,13 +214,13 @@ fn map_quota_bucket(bucket: &Value) -> QuotaBucket {
         .unwrap_or(bucket_id.as_str())
         .to_string();
 
-    QuotaBucket {
+    Some(QuotaBucket {
         bucket_id,
         window,
         remaining,
         reset_at,
         label,
-    }
+    })
 }
 
 /// Turns a display name into a stable slug.
@@ -286,13 +298,19 @@ mod tests {
             "deprecatedModelIds": {}
         });
 
-        let quotas = map_model_quotas(&payload, 1_767_320_645_000);
+        let snapshot = map_model_quotas(&payload, 1_767_320_645_000)
+            .expect("the payload maps");
 
-        // The model without a known family is skipped.
-        assert_eq!(quotas.len(), 4);
+        // The catalog carries every model with a known family, including the
+        // one that reports no quota at all.
+        assert_eq!(snapshot.models.len(), 4);
+        // A model without a known family is skipped and an unknown fraction is
+        // omitted, never read as an exhausted quota.
+        assert_eq!(snapshot.quotas.len(), 3);
 
         let find = |name: &str| {
-            quotas
+            snapshot
+                .quotas
                 .iter()
                 .find(|quota| quota.name == name)
                 .unwrap_or_else(|| panic!("{name} is mapped"))
@@ -315,10 +333,14 @@ mod tests {
         // A model without a quota has no reset time.
         assert_eq!(gpt.reset_label, "—");
 
-        // `imagen` belongs to the Gemini family.
-        let imagen = find("Imagen 4");
-        assert_eq!(imagen.family, ModelFamily::Gemini);
-        assert!((imagen.remaining - 0.0).abs() < f64::EPSILON);
+        // `imagen` belongs to the Gemini family and carries no quota row.
+        assert!(
+            snapshot
+                .models
+                .iter()
+                .any(|model| model.id == "imagen-4" && model.label == "Imagen 4")
+        );
+        assert!(snapshot.quotas.iter().all(|quota| quota.name != "Imagen 4"));
     }
 
     #[test]

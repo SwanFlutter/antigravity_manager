@@ -5,8 +5,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get_x_master/get_x_master.dart';
 
+import '../../../I18n/messages.dart';
 import '../../../core/data/mock_data.dart';
 import '../../../data/accounts_repository.dart';
+import '../../../data/cloud_models.dart';
 import 'app_controller.dart';
 
 enum PlaygroundTab { single, compare, benchmark, dual }
@@ -18,6 +20,7 @@ class PlaygroundResult {
     this.error,
     this.latencyMs = 0,
     this.tokens = 0,
+    this.status = 0,
   });
 
   final String text;
@@ -25,13 +28,17 @@ class PlaygroundResult {
   final int latencyMs;
   final int tokens;
 
+  /// The HTTP status of the answer, 0 when the request never completed.
+  final int status;
+
   bool get isError => error != null;
+  String get displayText => error ?? text;
 }
 
 /// State of the model playground.
 class PlaygroundController extends GetXController {
   PlaygroundController({AccountsRepository? repository})
-      : repository = repository ?? defaultAccountsRepository();
+    : repository = repository ?? defaultAccountsRepository();
 
   final AccountsRepository repository;
 
@@ -45,6 +52,12 @@ class PlaygroundController extends GetXController {
   final RxDouble topP = 0.95.obs;
   final RxInt maxTokens = 2048.obs;
   final RxBool stream = true.obs;
+
+  /// The state of the local gateway, for the header badge and the run flow.
+  final Rx<ProxyStatus> gateway = const ProxyStatus.empty().obs;
+
+  /// Why the last run failed before any account was asked, if it did.
+  final Rx<String?> runError = Rx<String?>(null);
 
   /// The accounts the compare and benchmark tabs send the prompt to.
   final RxSet<String> compareAccounts = <String>{}.obs;
@@ -68,9 +81,33 @@ class PlaygroundController extends GetXController {
     'TypeScript',
   ];
 
-  final RxList<Account> accounts = MockData.accounts.obs;
+  final RxList<Account> accounts = <Account>[].obs;
 
-  final RxList<String> models = MockData.catalogModelIds.obs;
+  final RxList<String> models = <String>[].obs;
+
+  final RxList<CatalogModel> catalog = <CatalogModel>[].obs;
+  final RxnString sourceError = RxnString();
+
+  /// The human readable name of a model id.
+  String modelLabel(String id) {
+    for (final model in catalog) {
+      if (model.id == id) return model.label;
+    }
+    return id;
+  }
+
+  void toggleCompareAccount(String id) {
+    if (compareAccounts.contains(id)) {
+      compareAccounts.remove(id);
+    } else {
+      compareAccounts.add(id);
+    }
+  }
+
+  void selectAllCompare() =>
+      compareAccounts.assignAll(accounts.map((a) => a.id));
+
+  void clearAllCompare() => compareAccounts.clear();
 
   @override
   void onInit() {
@@ -82,22 +119,48 @@ class PlaygroundController extends GetXController {
 
   /// Reads the account pool and the model catalog from the repository.
   Future<void> loadSources() async {
+    sourceError.value = null;
     try {
       final snapshot = await repository.load();
-      if (snapshot.accounts.isNotEmpty) {
-        accounts.assignAll(snapshot.accounts);
-        compareAccounts.assignAll(snapshot.accounts.map((a) => a.id));
+      final firstLoad = accounts.isEmpty;
+      accounts.assignAll(snapshot.accounts);
+      final ids = snapshot.accounts.map((a) => a.id).toSet();
+      compareAccounts.assignAll(
+        firstLoad ? ids : compareAccounts.intersection(ids),
+      );
+      if (account.value != 'auto' && !ids.contains(account.value)) {
+        account.value = 'auto';
       }
-    } catch (_) {
-      // The screen keeps its placeholder state.
+    } catch (error) {
+      accounts.clear();
+      compareAccounts.clear();
+      sourceError.value = error.toString();
     }
     try {
       final catalog = await repository.modelCatalog();
-      if (catalog.isNotEmpty) {
-        models.assignAll([for (final model in catalog) model.id]);
+      this.catalog.assignAll(catalog);
+      models.assignAll([for (final model in catalog) model.id]);
+      if (!models.contains(model.value)) {
+        model.value = models.isEmpty ? '' : models.first;
       }
+      if (!models.contains(secondModel.value)) {
+        secondModel.value = models.isEmpty
+            ? ''
+            : models.length > 1
+            ? models[1]
+            : models.first;
+      }
+    } catch (error) {
+      catalog.clear();
+      models.clear();
+      model.value = '';
+      secondModel.value = '';
+      sourceError.value = error.toString();
+    }
+    try {
+      gateway.value = await repository.proxyStatus();
     } catch (_) {
-      // The screen keeps its placeholder state.
+      gateway.value = const ProxyStatus.empty();
     }
   }
 
@@ -112,10 +175,21 @@ class PlaygroundController extends GetXController {
 
     running.value = true;
     lastResult.value = null;
+    runError.value = null;
     results.clear();
 
     try {
+      if (model.value.isEmpty ||
+          (tab.value == PlaygroundTab.dual && secondModel.value.isEmpty)) {
+        throw sourceError.value ?? Messages.accountsQuotaUnavailable.tr;
+      }
+      if ((tab.value == PlaygroundTab.compare ||
+              tab.value == PlaygroundTab.benchmark) &&
+          compareAccounts.isEmpty) {
+        throw Messages.playgroundSelectAccounts.tr;
+      }
       final status = await repository.proxyStatus();
+      gateway.value = status;
       if (!status.running) {
         throw 'The local gateway is offline. Start it in the API proxy tab.';
       }
@@ -126,36 +200,42 @@ class PlaygroundController extends GetXController {
 
       switch (tab.value) {
         case PlaygroundTab.compare:
-          await _runForAccounts(prompt, _targetAccounts(), status.baseUrl, key);
         case PlaygroundTab.benchmark:
           await _runForAccounts(
             prompt,
-            accounts.map((a) => a.id).toSet(),
+            compareAccounts.toSet(),
             status.baseUrl,
             key,
           );
         case PlaygroundTab.dual:
           await _useAccount();
-          results[model.value] =
-              await _call(status.baseUrl, key, model.value, prompt);
-          results[secondModel.value] =
-              await _call(status.baseUrl, key, secondModel.value, prompt);
+          results[model.value] = await _call(
+            status.baseUrl,
+            key,
+            model.value,
+            prompt,
+          );
+          results[secondModel.value] = await _call(
+            status.baseUrl,
+            key,
+            secondModel.value,
+            prompt,
+          );
         case PlaygroundTab.single:
           await _useAccount();
-          lastResult.value =
-              await _call(status.baseUrl, key, model.value, prompt);
+          lastResult.value = await _call(
+            status.baseUrl,
+            key,
+            model.value,
+            prompt,
+          );
       }
     } catch (error) {
+      runError.value = error.toString();
       lastResult.value = PlaygroundResult(error: error.toString());
     } finally {
       running.value = false;
     }
-  }
-
-  /// The accounts the compare tab targets: the selection, or the whole pool.
-  Set<String> _targetAccounts() {
-    if (compareAccounts.isNotEmpty) return compareAccounts.toSet();
-    return accounts.map((a) => a.id).toSet();
   }
 
   /// Points the gateway at the chosen account, unless the pool routes it.
@@ -186,34 +266,40 @@ class PlaygroundController extends GetXController {
     String prompt,
   ) async {
     final client = HttpClient();
+    final stopwatch = Stopwatch()..start();
+    final streaming = stream.value;
+    var status = 0;
     try {
-      final stopwatch = Stopwatch()..start();
       final request = await client.postUrl(
         Uri.parse('$baseUrl/v1/chat/completions'),
       );
       request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
       request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $key');
-      request.write(jsonEncode({
-        'model': modelId,
-        'messages': [
-          {'role': 'user', 'content': prompt},
-        ],
-        'temperature': temperature.value,
-        'top_p': topP.value,
-        'max_tokens': maxTokens.value,
-        'stream': stream.value,
-      }));
+      request.write(
+        jsonEncode({
+          'model': modelId,
+          'messages': [
+            {'role': 'user', 'content': prompt},
+          ],
+          'temperature': temperature.value,
+          'top_p': topP.value,
+          'max_tokens': maxTokens.value,
+          'stream': streaming,
+        }),
+      );
 
       final response = await request.close();
+      status = response.statusCode;
       final body = await response.transform(utf8.decoder).join();
       stopwatch.stop();
 
       if (response.statusCode == 200) {
-        if (stream.value) {
+        if (streaming) {
           return PlaygroundResult(
             text: _streamedText(body),
             latencyMs: stopwatch.elapsedMilliseconds,
             tokens: _streamedTokens(body),
+            status: 200,
           );
         }
         final payload = jsonDecode(body) as Map;
@@ -224,21 +310,60 @@ class PlaygroundController extends GetXController {
           text: text,
           latencyMs: stopwatch.elapsedMilliseconds,
           tokens: _tokenCount(payload),
+          status: 200,
         );
       }
 
-      final payload = jsonDecode(body) as Map;
-      final error = payload['error'] as Map?;
-      final message = error?['message'] as String?;
       return PlaygroundResult(
-        error: 'HTTP ${response.statusCode}: ${message ?? body}',
+        error: _httpError(status, body),
         latencyMs: stopwatch.elapsedMilliseconds,
+        status: status,
       );
     } on Exception catch (error) {
-      return PlaygroundResult(error: error.toString());
+      return PlaygroundResult(
+        error: error.toString(),
+        latencyMs: stopwatch.elapsedMilliseconds,
+        status: status,
+      );
     } finally {
       client.close(force: true);
     }
+  }
+
+  static String _httpError(int status, String body) {
+    var detailsStr = body;
+    try {
+      final payload = jsonDecode(body);
+      Object? provider = payload;
+      if (payload is Map && payload['error'] is Map) {
+        final message = (payload['error'] as Map)['message'];
+        if (message is String && message.trim().startsWith('{')) {
+          try {
+            provider = jsonDecode(message);
+          } on FormatException {
+            provider = payload;
+          }
+        }
+      }
+      detailsStr = const JsonEncoder.withIndent('  ').convert(provider);
+    } on FormatException {
+      detailsStr = body;
+    }
+
+    final parsedDetails = AccountErrorDetails.parse(body);
+
+    var guidance = '';
+    if (parsedDetails.isValidationRequired) {
+      guidance = '${Messages.playgroundValidationRequired.tr}\n\n';
+    } else if (parsedDetails.isTosViolation) {
+      guidance = '${Messages.playgroundProviderRestricted.tr}\n\n';
+    }
+
+    if (parsedDetails.primaryActionUrl != null) {
+      guidance += 'Action URL: ${parsedDetails.primaryActionUrl}\n\n';
+    }
+
+    return 'HTTP $status\n$guidance$detailsStr';
   }
 
   /// Reads the text out of a server sent event body.
@@ -250,8 +375,9 @@ class PlaygroundController extends GetXController {
       if (data == '[DONE]' || data.isEmpty) continue;
       try {
         final payload = jsonDecode(data);
-        final delta = (((payload as Map)['choices'] as List?)?.first
-            as Map?)?['delta'] as Map?;
+        final delta =
+            (((payload as Map)['choices'] as List?)?.first as Map?)?['delta']
+                as Map?;
         final content = delta?['content'] as String?;
         if (content != null) buffer.write(content);
       } on FormatException {

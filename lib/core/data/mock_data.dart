@@ -6,33 +6,33 @@ enum ModelFamily { gemini, claude, openai }
 
 extension ModelFamilyLabel on ModelFamily {
   String get label => switch (this) {
-        ModelFamily.gemini => 'Google Gemini',
-        ModelFamily.claude => 'Anthropic Claude',
-        ModelFamily.openai => 'OpenAI',
-      };
+    ModelFamily.gemini => 'Google Gemini',
+    ModelFamily.claude => 'Anthropic Claude',
+    ModelFamily.openai => 'OpenAI',
+  };
 
   String get shortLabel => switch (this) {
-        ModelFamily.gemini => 'Gemini',
-        ModelFamily.claude => 'Claude',
-        ModelFamily.openai => 'OpenAI',
-      };
+    ModelFamily.gemini => 'Gemini',
+    ModelFamily.claude => 'Claude',
+    ModelFamily.openai => 'OpenAI',
+  };
 
   IconData get icon => switch (this) {
-        ModelFamily.gemini => Icons.auto_awesome_rounded,
-        ModelFamily.claude => Icons.brightness_7_rounded,
-        ModelFamily.openai => Icons.blur_on_rounded,
-      };
+    ModelFamily.gemini => Icons.auto_awesome_rounded,
+    ModelFamily.claude => Icons.brightness_7_rounded,
+    ModelFamily.openai => Icons.blur_on_rounded,
+  };
 }
 
 enum AccountStatus { active, idle, rateLimited, error }
 
 extension AccountStatusLabel on AccountStatus {
   String get label => switch (this) {
-        AccountStatus.active => 'Active',
-        AccountStatus.idle => 'Idle',
-        AccountStatus.rateLimited => 'Rate limited',
-        AccountStatus.error => 'Error',
-      };
+    AccountStatus.active => 'Active',
+    AccountStatus.idle => 'Idle',
+    AccountStatus.rateLimited => 'Rate limited',
+    AccountStatus.error => 'Error',
+  };
 }
 
 class ModelQuota {
@@ -109,6 +109,8 @@ class Account {
     this.recommended = false,
     this.unbound = false,
     this.demo = false,
+    this.quotaFetchedAt,
+    this.quotaError,
   });
 
   final String id;
@@ -132,6 +134,8 @@ class Account {
   /// The interface marks those accounts, so a real account is never confused
   /// with the sample data of a fresh profile.
   final bool demo;
+  final int? quotaFetchedAt;
+  final String? quotaError;
 
   List<ModelQuota> quotasOf(ModelFamily family) =>
       quotas.where((q) => q.family == family).toList();
@@ -180,22 +184,22 @@ enum TrafficCategory { modelRequests, otherRequests, appActions, systemEvents }
 
 extension TrafficCategoryLabel on TrafficCategory {
   String get label => switch (this) {
-        TrafficCategory.modelRequests => 'Model requests',
-        TrafficCategory.otherRequests => 'Other requests',
-        TrafficCategory.appActions => 'App actions',
-        TrafficCategory.systemEvents => 'System events',
-      };
+    TrafficCategory.modelRequests => 'Model requests',
+    TrafficCategory.otherRequests => 'Other requests',
+    TrafficCategory.appActions => 'App actions',
+    TrafficCategory.systemEvents => 'System events',
+  };
 }
 
 enum TrafficResult { success, appError, signInFailed, timeout }
 
 extension TrafficResultLabel on TrafficResult {
   String get label => switch (this) {
-        TrafficResult.success => 'OK',
-        TrafficResult.appError => 'App error',
-        TrafficResult.signInFailed => 'Sign-in failed',
-        TrafficResult.timeout => 'Timed out',
-      };
+    TrafficResult.success => 'OK',
+    TrafficResult.appError => 'App error',
+    TrafficResult.signInFailed => 'Sign-in failed',
+    TrafficResult.timeout => 'Timed out',
+  };
 }
 
 class TrafficEntry {
@@ -399,11 +403,7 @@ abstract final class MockData {
       label: 'GPT 5.1 Codex',
       family: ModelFamily.openai,
     ),
-    CatalogModel(
-      id: 'gpt-5-1',
-      label: 'GPT 5.1',
-      family: ModelFamily.openai,
-    ),
+    CatalogModel(id: 'gpt-5-1', label: 'GPT 5.1', family: ModelFamily.openai),
     CatalogModel(
       id: 'claude-haiku-4-5',
       label: 'Claude Haiku 4.5',
@@ -538,9 +538,11 @@ abstract final class MockData {
           ModelQuota(
             name: model.label,
             family: model.family,
-            remaining: overrides[model.id]?.remaining ??
+            remaining:
+                overrides[model.id]?.remaining ??
                 (seeded ? _seededRemaining(id, model.id) : 0),
-            resetLabel: overrides[model.id]?.reset ??
+            resetLabel:
+                overrides[model.id]?.reset ??
                 (seeded ? _seededReset(id, model.id) : '—'),
           ),
       ],
@@ -548,9 +550,11 @@ abstract final class MockData {
         for (final group in modelGroups)
           WeeklyQuota(
             groupId: group.id,
-            remaining: weeklyOverrides[group.id]?.remaining ??
+            remaining:
+                weeklyOverrides[group.id]?.remaining ??
                 (seeded ? _seededWeeklyRemaining(id, group.id) : 0),
-            resetLabel: weeklyOverrides[group.id]?.reset ??
+            resetLabel:
+                weeklyOverrides[group.id]?.reset ??
                 (seeded ? _seededWeeklyReset(id, group.id) : '—'),
           ),
       ],
@@ -562,7 +566,14 @@ abstract final class MockData {
   }
 
   static String _seededWeeklyReset(String accountId, String groupId) {
-    const windows = ['18h 40m', '1d 08h', '3d 04h', '4d 02h', '5d 11h', '6d 23h'];
+    const windows = [
+      '18h 40m',
+      '1d 08h',
+      '3d 04h',
+      '4d 02h',
+      '5d 11h',
+      '6d 23h',
+    ];
     return windows[_seed(accountId, 'weekly|$groupId') % windows.length];
   }
 
@@ -754,14 +765,8 @@ abstract final class MockData {
       source: 'Claude Opus 4.6 (Thinking)',
       target: 'claude-opus-4-6-thinking',
     ),
-    ModelMapping(
-      source: 'Claude Haiku 4.5',
-      target: 'claude-haiku-4-5',
-    ),
-    ModelMapping(
-      source: 'GPT 5.1',
-      target: 'gpt-5-1',
-    ),
+    ModelMapping(source: 'Claude Haiku 4.5', target: 'claude-haiku-4-5'),
+    ModelMapping(source: 'GPT 5.1', target: 'gpt-5-1'),
   ];
 
   static const List<String> availableModels = [
@@ -779,8 +784,9 @@ abstract final class MockData {
   ];
 
   /// Every model id the gateway accepts, taken from the catalog.
-  static List<String> get catalogModelIds =>
-      [for (final model in modelCatalog) model.id];
+  static List<String> get catalogModelIds => [
+    for (final model in modelCatalog) model.id,
+  ];
 
   static const List<ServiceEntry> services = [
     ServiceEntry(

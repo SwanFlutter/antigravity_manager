@@ -108,7 +108,12 @@ class PageHeader extends StatelessWidget {
                 trailingBlock,
               ] else if (actionBlock != null) ...[
                 const SizedBox(width: 20),
-                actionBlock,
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: constraints.maxWidth * 0.65,
+                  ),
+                  child: actionBlock,
+                ),
               ],
             ],
           );

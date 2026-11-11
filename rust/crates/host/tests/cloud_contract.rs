@@ -97,8 +97,9 @@ async fn call(
 
 #[tokio::test]
 async fn the_cloud_methods_speak_the_names_of_the_client() {
-    let pipe_name = format!("antigravity-host-cloud-{}", std::process::id());
-    let directory = std::env::temp_dir().join(format!("antigravity-cloud-{}", std::process::id()));
+    let test_id = uuid::Uuid::new_v4();
+    let pipe_name = format!("antigravity-host-cloud-{test_id}");
+    let directory = std::env::temp_dir().join(format!("antigravity-cloud-{test_id}"));
     std::fs::create_dir_all(&directory).expect("the directory of the profile exists");
 
     let dispatcher = dispatcher(&directory);
@@ -140,6 +141,52 @@ async fn the_cloud_methods_speak_the_names_of_the_client() {
     assert!(status.error.is_none(), "connectStatus failed: {:?}", status.error);
     let status = status.result.expect("connectStatus returns a result");
     assert_eq!(status["status"], "pending");
+
+    let empty = call(
+        &mut client,
+        methods::ACCOUNTS_SUBMIT_CODE,
+        serde_json::json!({ "sessionId": session_id, "code": " \r\n " }),
+    ).await;
+    assert!(empty.error.is_some());
+    assert_eq!(dispatcher.cloud.as_ref().unwrap().sessions.status(session_id).unwrap().0, "pending");
+
+    let state = reqwest::Url::parse(url).unwrap().query_pairs()
+        .find(|(key, _)| key == "state").unwrap().1.into_owned();
+    let http = reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(3)).build().unwrap();
+    let mismatch = http.get(format!("{redirect}?state=wrong&error=access_denied"))
+        .send().await.unwrap();
+    assert_eq!(mismatch.status(), 400);
+    assert_eq!(dispatcher.cloud.as_ref().unwrap().sessions.status(session_id).unwrap().0, "pending");
+    let denied = http.get(format!("{redirect}?state={state}&error=access_denied"))
+        .send().await.unwrap();
+    assert!(denied.text().await.unwrap().contains("Authorization cancelled"));
+    let failed = tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let response = call(
+                &mut client,
+                methods::ACCOUNTS_CONNECT_STATUS,
+                serde_json::json!({ "sessionId": session_id }),
+            ).await;
+            let status = response.result.unwrap();
+            if status["status"] != "pending" {
+                break status;
+            }
+            tokio::task::yield_now().await;
+        }
+    }).await.unwrap();
+    assert_eq!(failed["status"], "failed");
+    assert!(failed["error"].as_str().unwrap().contains("cancelled"));
+    for _ in 0..2 {
+        let reused = call(
+            &mut client,
+            methods::ACCOUNTS_SUBMIT_CODE,
+            serde_json::json!({ "sessionId": session_id, "code": "unused-test-code" }),
+        ).await;
+        assert!(reused.error.is_some());
+    }
+    let sessions = &dispatcher.cloud.as_ref().unwrap().sessions;
+    sessions.expire(session_id, i64::MAX);
+    assert_eq!(sessions.status(session_id).unwrap().0, "failed");
 
     // --- accounts.connected ---------------------------------------------
     let connected = call(&mut client, methods::ACCOUNTS_CONNECTED, serde_json::json!({})).await;

@@ -83,6 +83,8 @@ class Messages {
   static const String accountsConnectDone = 'accounts_connect_done';
   static const String accountsConnectFailed = 'accounts_connect_failed';
   static const String accountsConnectManual = 'accounts_connect_manual';
+  static const String accountsConnectOpenBrowser = 'accounts_connect_open_browser';
+  static const String accountsConnectOpenHint = 'accounts_connect_open_hint';
   static const String accountsConnectSubmit = 'accounts_connect_submit';
   static const String accountsAllTiers = 'accounts_all_tiers';
   static const String accountsMinimalMode = 'accounts_minimal_mode';
@@ -111,6 +113,10 @@ class Messages {
   static const String accountsMoreActions = 'accounts_more_actions';
   static const String accountsOpenInPlayground = 'accounts_open_in_playground';
   static const String accountsRefreshQuota = 'accounts_refresh_quota';
+  static const String accountsVerifyAccount = 'accounts_verify_account';
+  static const String accountsSubmitAppeal = 'accounts_submit_appeal';
+  static const String accountsProxyTip = 'accounts_proxy_tip';
+
   static const String accountsCopyAccountId = 'accounts_copy_account_id';
   static const String accountsRemoveAccount = 'accounts_remove_account';
   static const String accountsQuotaSummary = 'accounts_quota_summary';
@@ -121,6 +127,10 @@ class Messages {
   static const String accountsRateLimitedHint = 'accounts_rate_limited_hint';
   static const String accountsGlobalQuotaHint = 'accounts_global_quota_hint';
   static const String accountsPoolCount = 'accounts_pool_count';
+  static const String accountsQuotaUnavailable = 'accounts_quota_unavailable';
+  static const String accountsQuotaCached = 'accounts_quota_cached';
+  static const String accountsQuotaFetched = 'accounts_quota_fetched';
+  static const String accountsQuotaFailed = 'accounts_quota_failed';
 
   // Workspaces ------------------------------------------------------------
   static const String workspacesTitle = 'workspaces_title';
@@ -180,7 +190,8 @@ class Messages {
   static const String proxyProtocolOpenAI = 'proxy_protocol_openai';
   static const String proxyProtocolOpenAIHint = 'proxy_protocol_openai_hint';
   static const String proxyProtocolAnthropic = 'proxy_protocol_anthropic';
-  static const String proxyProtocolAnthropicHint = 'proxy_protocol_anthropic_hint';
+  static const String proxyProtocolAnthropicHint =
+      'proxy_protocol_anthropic_hint';
   static const String proxyExampleModel = 'proxy_example_model';
   static const String proxyExampleModelHint = 'proxy_example_model_hint';
   static const String proxyExampleCurl = 'proxy_example_curl';
@@ -215,6 +226,21 @@ class Messages {
   static const String playgroundTokens = 'playground_tokens';
   static const String playgroundEstimatedCost = 'playground_estimated_cost';
   static const String playgroundSecondModel = 'playground_second_model';
+  static const String playgroundCompareTitle = 'playground_compare_title';
+  static const String playgroundCompareDesc = 'playground_compare_desc';
+  static const String playgroundProviderRestricted =
+      'playground_provider_restricted';
+  static const String playgroundValidationRequired =
+      'playground_validation_required';
+  static const String playgroundSelectAccounts = 'playground_select_accounts';
+  static const String playgroundSelectAll = 'playground_select_all';
+  static const String playgroundClearAll = 'playground_clear_all';
+  static const String playgroundSelectedCount = 'playground_selected_count';
+  static const String playgroundRunSelected = 'playground_run_selected';
+  static const String playgroundComparisonResults =
+      'playground_comparison_results';
+  static const String playgroundSuccess = 'playground_success';
+  static const String playgroundError = 'playground_error';
 
   // Traffic ---------------------------------------------------------------
   static const String trafficTitle = 'traffic_title';
@@ -264,11 +290,13 @@ class Messages {
   static const String settingsDensity = 'settings_density';
   static const String settingsDensityDesc = 'settings_density_desc';
   static const String settingsDensityCompact = 'settings_density_compact';
-  static const String settingsDensityComfortable = 'settings_density_comfortable';
+  static const String settingsDensityComfortable =
+      'settings_density_comfortable';
   static const String settingsReduceMotion = 'settings_reduce_motion';
   static const String settingsReduceMotionDesc = 'settings_reduce_motion_desc';
   static const String settingsAccountBehaviour = 'settings_account_behaviour';
-  static const String settingsAccountBehaviourDesc = 'settings_account_behaviour_desc';
+  static const String settingsAccountBehaviourDesc =
+      'settings_account_behaviour_desc';
   static const String settingsAutoSwitch = 'settings_auto_switch';
   static const String settingsAutoSwitchDesc = 'settings_auto_switch_desc';
   static const String settingsMinimalMode = 'settings_minimal_mode';
@@ -280,7 +308,8 @@ class Messages {
   static const String settingsLaunchOnBoot = 'settings_launch_on_boot';
   static const String settingsLaunchOnBootDesc = 'settings_launch_on_boot_desc';
   static const String settingsAutoStartProxy = 'settings_auto_start_proxy';
-  static const String settingsAutoStartProxyDesc = 'settings_auto_start_proxy_desc';
+  static const String settingsAutoStartProxyDesc =
+      'settings_auto_start_proxy_desc';
   static const String settingsProxy = 'settings_proxy';
   static const String settingsProxyDesc = 'settings_proxy_desc';
   static const String settingsBindAddress = 'settings_bind_address';
@@ -290,11 +319,13 @@ class Messages {
   static const String settingsMaskKey = 'settings_mask_key';
   static const String settingsMaskKeyDesc = 'settings_mask_key_desc';
   static const String settingsModelVisibility = 'settings_model_visibility';
-  static const String settingsModelVisibilityDesc = 'settings_model_visibility_desc';
+  static const String settingsModelVisibilityDesc =
+      'settings_model_visibility_desc';
   static const String settingsVisibleModels = 'settings_visible_models';
   static const String settingsSearchModels = 'settings_search_models';
   static const String settingsProviderGrouping = 'settings_provider_grouping';
-  static const String settingsProviderGroupingDesc = 'settings_provider_grouping_desc';
+  static const String settingsProviderGroupingDesc =
+      'settings_provider_grouping_desc';
   static const String settingsTotal = 'settings_total';
   static const String settingsVisible = 'settings_visible';
   static const String settingsHidden = 'settings_hidden';
@@ -304,7 +335,8 @@ class Messages {
   static const String settingsTelemetryDesc = 'settings_telemetry_desc';
   static const String settingsClearTraffic = 'settings_clear_traffic';
   static const String settingsClearTrafficDesc = 'settings_clear_traffic_desc';
-  static const String settingsClearTrafficAction = 'settings_clear_traffic_action';
+  static const String settingsClearTrafficAction =
+      'settings_clear_traffic_action';
   static const String settingsNotifications = 'settings_notifications';
   static const String settingsNotificationsDesc = 'settings_notifications_desc';
   static const String settingsLowQuota = 'settings_low_quota';
@@ -314,7 +346,8 @@ class Messages {
   static const String settingsCreditsAlert = 'settings_credits_alert';
   static const String settingsCreditsAlertDesc = 'settings_credits_alert_desc';
   static const String settingsCreditsThreshold = 'settings_credits_threshold';
-  static const String settingsCreditsThresholdDesc = 'settings_credits_threshold_desc';
+  static const String settingsCreditsThresholdDesc =
+      'settings_credits_threshold_desc';
   static const String settingsAbout = 'settings_about';
   static const String settingsAboutDesc = 'settings_about_desc';
   static const String settingsVersion = 'settings_version';

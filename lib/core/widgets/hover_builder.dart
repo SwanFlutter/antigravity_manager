@@ -7,6 +7,9 @@ class HoverBuilder extends StatefulWidget {
     required this.builder,
     this.cursor = SystemMouseCursors.click,
     this.onTap,
+    this.onTapDown,
+    this.onTapUp,
+    this.onTapCancel,
     this.focusNode,
     this.autofocus = false,
   });
@@ -16,6 +19,9 @@ class HoverBuilder extends StatefulWidget {
 
   final MouseCursor cursor;
   final VoidCallback? onTap;
+  final VoidCallback? onTapDown;
+  final VoidCallback? onTapUp;
+  final VoidCallback? onTapCancel;
   final FocusNode? focusNode;
   final bool autofocus;
 
@@ -40,6 +46,11 @@ class _HoverBuilderState extends State<HoverBuilder> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: widget.onTap,
+          onTapDown: widget.onTapDown == null
+              ? null
+              : (_) => widget.onTapDown!(),
+          onTapUp: widget.onTapUp == null ? null : (_) => widget.onTapUp!(),
+          onTapCancel: widget.onTapCancel,
           child: widget.builder(context, _hovered, _focused),
         ),
       ),

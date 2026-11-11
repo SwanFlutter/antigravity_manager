@@ -9,8 +9,8 @@
 
 use std::path::PathBuf;
 
-use antigravity_core::cloud::{format_reset_label, AccountCredentials, ProxyConfig};
 use antigravity_core::demo;
+use antigravity_core::cloud::{format_reset_label, AccountCredentials, ProxyConfig};
 use antigravity_core::domain::{
     Account, AccountStatus, Model, ModelQuota, WeeklyQuota, Workspace, WorkspaceState,
 };
@@ -92,6 +92,8 @@ pub fn import_upstream(repository: &SqliteAccountRepository, now: i64) -> Result
             selected: false,
             // An imported account is a real account, never a sample.
             demo: false,
+            quota_fetched_at: None,
+            quota_error: None,
             quotas,
             weekly_quotas: weekly,
         };

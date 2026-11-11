@@ -72,6 +72,9 @@ class _AppButtonState extends State<AppButton> {
 
     return HoverBuilder(
       onTap: enabled ? widget.onPressed : null,
+      onTapDown: enabled ? () => setState(() => _pressed = true) : null,
+      onTapUp: enabled ? () => setState(() => _pressed = false) : null,
+      onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       builder: (context, hovered, focused) {
         final active = hovered && enabled;
@@ -155,18 +158,13 @@ class _AppButtonState extends State<AppButton> {
           ),
         );
 
-        return GestureDetector(
-          onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
-          onTapUp: enabled ? (_) => setState(() => _pressed = false) : null,
-          onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
-          child: Semantics(
-            button: true,
-            enabled: enabled,
-            label: widget.label,
-            child: widget.expand
-                ? SizedBox(width: double.infinity, child: content)
-                : content,
-          ),
+        return Semantics(
+          button: true,
+          enabled: enabled,
+          label: widget.label,
+          child: widget.expand
+              ? SizedBox(width: double.infinity, child: content)
+              : content,
         );
       },
     );

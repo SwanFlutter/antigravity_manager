@@ -62,6 +62,8 @@ pub fn account_to_dto(account: &Account) -> AccountDto {
         in_use: account.in_use,
         recommended: account.recommended,
         demo: account.demo,
+        quota_fetched_at: account.quota_fetched_at,
+        quota_error: account.quota_error.clone(),
         quotas: account.quotas.iter().map(quota_to_dto).collect(),
         weekly_quotas: account.weekly_quotas.iter().map(weekly_to_dto).collect(),
     }

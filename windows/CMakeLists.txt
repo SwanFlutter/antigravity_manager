@@ -105,6 +105,18 @@ endif()
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
 
+if(CARGO_EXECUTABLE)
+  # The host travels with the application: the launcher of the interface looks
+  # for it next to the executable first, so a bundle without it would fall back
+  # to a host that is not the one this build produced.
+  install(FILES "${HOST_EXECUTABLE_DEBUG}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime OPTIONAL
+    CONFIGURATIONS Debug)
+  install(FILES "${HOST_EXECUTABLE_RELEASE}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime OPTIONAL
+    CONFIGURATIONS Profile;Release)
+endif()
+
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
@@ -139,3 +151,8 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# The application never starts before the host it talks to exists.
+if(TARGET ${BINARY_NAME} AND TARGET antigravity_host)
+  add_dependencies(${BINARY_NAME} antigravity_host)
+endif()

@@ -18,13 +18,13 @@ abstract class AppTranslationsKeys {
 class AppTranslations extends Translations {
   @override
   Map<String, Map<String, String>> get keys => {
-        'en_US': English().keys,
-        'fa_IR': Farsi().keys,
-        'ar_SA': Arabic().keys,
-        'de_DE': German().keys,
-        'fr_FR': French().keys,
-        'zh_CN': Chinese().keys,
-      };
+    'en_US': English().keys,
+    'fa_IR': Farsi().keys,
+    'ar_SA': Arabic().keys,
+    'de_DE': German().keys,
+    'fr_FR': French().keys,
+    'zh_CN': Chinese().keys,
+  };
 
   /// Native names shown in the language picker.
   static const Map<String, String> languageNames = {

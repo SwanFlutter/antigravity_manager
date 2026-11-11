@@ -189,6 +189,10 @@ pub mod dto {
         /// Whether the account belongs to the synthetic dataset.
         #[serde(default)]
         pub demo: bool,
+        #[serde(default)]
+        pub quota_fetched_at: Option<i64>,
+        #[serde(default)]
+        pub quota_error: Option<String>,
         pub quotas: Vec<ModelQuotaDto>,
         pub weekly_quotas: Vec<WeeklyQuotaDto>,
     }

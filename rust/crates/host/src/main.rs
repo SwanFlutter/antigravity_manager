@@ -76,7 +76,7 @@ fn print_usage() {
          --profile <path>  Location of the profile database\n  \
          --pipe <name>     Name of the named pipe (default: {PIPE_NAME})\n  \
          --seed-demo       Writes the synthetic dataset into the profile\n  \
-         --reseed          Replaces the data of the profile with the demo dataset\n  \
+         --reseed          Reseeds a demo-only profile (refuses real accounts)\n  \
          -h, --help        Shows this message"
     );
 }
@@ -113,8 +113,7 @@ fn parse_options() -> Result<Options, String> {
     Ok(options)
 }
 
-/// Opens the profile, imports the real accounts of the upstream installation
-/// and seeds the demo data only when there is nothing real to show.
+/// Opens the profile and imports missing accounts. Demo data is opt-in only.
 fn open_repository(options: &Options) -> Result<Arc<SqliteAccountRepository>, String> {
     if let Some(parent) = options.profile.parent() {
         if !parent.as_os_str().is_empty() {
@@ -126,35 +125,41 @@ fn open_repository(options: &Options) -> Result<Arc<SqliteAccountRepository>, St
     let repository = SqliteAccountRepository::open(&options.profile.to_string_lossy())
         .map_err(|error| format!("cannot open the profile: {error}"))?;
 
-    // The accounts the upstream application already connected are the real
-    // account pool of this machine. They replace the synthetic dataset.
-    let imported = match upstream::import_upstream(&repository, SystemClock.now_millis()) {
-        Ok(count) => count,
-        Err(error) => {
-            eprintln!("[host] cannot import the upstream accounts: {error}");
-            0
-        }
-    };
-
-    let is_empty = repository
-        .list_accounts()
-        .map(|accounts| accounts.is_empty())
-        .unwrap_or(true);
-
-    if options.reseed || options.seed_demo || (is_empty && imported == 0) {
-        demo::seed_demo(&repository)
-            .map_err(|error| format!("cannot seed the demo data: {error}"))?;
-        println!("[host] profile ready at {}", options.profile.display());
-    }
-
-    if imported > 0 {
-        repository
-            .delete_demo_accounts()
-            .map_err(|error| format!("cannot remove the demo accounts: {error}"))?;
-        println!("[host] imported {imported} real account(s) from the upstream installation");
-    }
-
+    initialize_repository(&repository, options.seed_demo || options.reseed, || {
+        upstream::import_upstream(&repository, SystemClock.now_millis())
+    })?;
     Ok(Arc::new(repository))
+}
+
+fn initialize_repository(
+    repository: &SqliteAccountRepository,
+    explicit_demo: bool,
+    import: impl FnOnce() -> Result<usize, String>,
+) -> Result<(), String> {
+    let accounts = repository.list_accounts().map_err(|error| error.to_string())?;
+    if explicit_demo {
+        // Do not import into, or wipe, a profile explicitly opened for demos.
+        // seed_demo also checks credentials, including partially saved identities.
+        demo::seed_demo(repository).map_err(|error| error.to_string())?;
+        return Ok(());
+    }
+
+    // Recognize the exact undated stock catalog left by older demo startup.
+    // Account and quota rows are untouched; only imported/fetched models may
+    // repopulate this production catalog.
+    let catalog = repository.model_catalog().map_err(|error| error.to_string())?;
+    let stock = demo::model_catalog();
+    if !accounts.iter().any(|account| account.quota_fetched_at.is_some())
+        && catalog.len() == stock.len()
+        && stock.iter().all(|model| catalog.contains(model))
+    {
+        repository.clear_catalog().map_err(|error| error.to_string())?;
+    }
+    let imported = import()?;
+    if imported > 0 {
+        println!("[host] imported {imported} missing account(s) from the upstream installation");
+    }
+    Ok(())
 }
 
 #[tokio::main]
@@ -203,7 +208,9 @@ async fn main() -> ExitCode {
             accounts: accounts.clone(),
         }),
         config: Arc::new(tokio::sync::RwLock::new(config.clone())),
-        launch_browser: true,
+        // The interface opens the authorization URL itself, so the host must
+        // not open a second browser window on top of it.
+        launch_browser: false,
     });
 
     // The proxy starts with the host when it is configured that way.

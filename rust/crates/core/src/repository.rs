@@ -38,6 +38,12 @@ pub trait AccountRepository: Send + Sync {
     /// Inserts or replaces an account together with its quota windows.
     fn save_account(&self, account: &Account) -> Result<(), RepositoryError>;
 
+    /// Records a sync failure without touching cached quotas or their timestamp.
+    fn set_quota_error(&self, id: &str, error: &str) -> Result<(), RepositoryError>;
+
+    /// Merges actual provider models by their stable id.
+    fn merge_models(&self, models: &[Model]) -> Result<(), RepositoryError>;
+
     /// Marks exactly one account as the account used by the desktop clients.
     fn set_active_account(&self, id: &str) -> Result<(), RepositoryError>;
 

@@ -324,9 +324,10 @@ class _ServicesBlock extends StatelessWidget {
         horizontal: collapsed ? 14 : 16,
         vertical: 12,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: Obx(
+        () => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           if (!collapsed) ...[
             Row(
               children: [
@@ -371,7 +372,8 @@ class _ServicesBlock extends StatelessWidget {
                   .replaceAll('{m}', '${controller.services.length}'),
               style: TextStyle(fontSize: 11, color: palette.textMuted),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

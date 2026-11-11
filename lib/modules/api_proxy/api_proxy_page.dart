@@ -505,7 +505,9 @@ class _ServicePanel extends StatelessWidget {
                   variant: controller.running
                       ? AppButtonVariant.danger
                       : AppButtonVariant.primary,
-                  onPressed: controller.app.toggleProxy,
+                  onPressed: () => controller.running
+                      ? controller.stopProxy()
+                      : controller.startProxy(),
                 ),
               ),
             ],
@@ -534,45 +536,48 @@ class _ServicePanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Insets.md),
-          GlassTextField(
-            controller: controller.keyController,
-            label: Messages.proxyApiKey.tr,
-            icon: Icons.key_rounded,
-            monospace: true,
-            obscure: true,
-            suffix: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AppIconButton(
-                  icon: controller.revealKey.value
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  tooltip: controller.revealKey.value
-                      ? Messages.commonHide.tr
-                      : Messages.commonShow.tr,
-                  size: 30,
-                  iconSize: 16,
-                  onPressed: () =>
-                      controller.revealKey.value = !controller.revealKey.value,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: GlassTextField(
+                  controller: controller.keyController,
+                  label: Messages.proxyApiKey.tr,
+                  icon: Icons.key_rounded,
+                  monospace: true,
+                  obscure: true,
                 ),
-                const SizedBox(width: 6),
-                AppButton(
-                  label: Messages.commonCopy.tr,
-                  icon: Icons.copy_rounded,
-                  size: AppButtonSize.small,
-                  onPressed: () {},
+              ),
+              const SizedBox(width: Insets.sm),
+              AppButton(
+                label: Messages.commonCopy.tr,
+                icon: Icons.copy_rounded,
+                size: AppButtonSize.small,
+                onPressed: () => Clipboard.setData(
+                  ClipboardData(text: controller.keyController.text),
                 ),
-                const SizedBox(width: 6),
-                AppButton(
-                  label: Messages.proxyRegenerate.tr,
-                  icon: Icons.autorenew_rounded,
-                  size: AppButtonSize.small,
-                  onPressed: controller.regenerateKey,
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: Insets.sm),
+              AppButton(
+                label: Messages.proxyRegenerate.tr,
+                icon: Icons.autorenew_rounded,
+                size: AppButtonSize.small,
+                onPressed: controller.regenerateKey,
+              ),
+            ],
           ),
           const SizedBox(height: Insets.sm),
+          Obx(
+            () => controller.actionError.value == null
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(bottom: Insets.sm),
+                    child: Text(
+                      controller.actionError.value!,
+                      style: TextStyle(fontSize: 12, color: palette.danger),
+                    ),
+                  ),
+          ),
           Obx(
             () => ToggleRow(
               title: Messages.proxyAutoStart.tr,

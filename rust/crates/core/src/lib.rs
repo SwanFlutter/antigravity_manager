@@ -45,6 +45,8 @@ mod tests {
             recommended: false,
             selected: false,
             demo: false,
+            quota_fetched_at: None,
+            quota_error: None,
             quotas: vec![ModelQuota {
                 name: "Gemini 3.8 Flash (High)".to_string(),
                 family: ModelFamily::Gemini,

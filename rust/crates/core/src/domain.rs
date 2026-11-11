@@ -114,6 +114,10 @@ pub struct Account {
     /// The interface marks those accounts, so a real account is never
     /// confused with the sample data of a fresh profile.
     pub demo: bool,
+    /// Last successful model fetch, in Unix milliseconds; None denotes an undated cache.
+    pub quota_fetched_at: Option<i64>,
+    /// Sanitized model-sync failure or weekly-sync warning.
+    pub quota_error: Option<String>,
     pub quotas: Vec<ModelQuota>,
     pub weekly_quotas: Vec<WeeklyQuota>,
 }

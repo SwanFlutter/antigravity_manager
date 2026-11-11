@@ -15,10 +15,10 @@ class AccountSnapshot {
   });
 
   const AccountSnapshot.empty()
-      : accounts = const [],
-        activeCount = 0,
-        rateLimitedCount = 0,
-        globalRemaining = 0;
+    : accounts = const [],
+      activeCount = 0,
+      rateLimitedCount = 0,
+      globalRemaining = 0;
 
   final List<Account> accounts;
   final int activeCount;
@@ -99,10 +99,10 @@ AccountsRepository defaultAccountsRepository() {
   return HostAccountsRepository();
 }
 
-/// The in process fake used by the prototype and by the tests.
+/// The in process fake used by deterministic tests.
 class MockAccountsRepository implements AccountsRepository {
   MockAccountsRepository({List<Account>? accounts})
-      : _accounts = accounts ?? MockData.accounts;
+    : _accounts = accounts ?? MockData.accounts;
 
   final List<Account> _accounts;
 
@@ -166,125 +166,106 @@ class MockAccountsRepository implements AccountsRepository {
 
   @override
   Future<List<Workspace>> workspaces() async => MockData.workspaces;
-
-  /// Builds the snapshot of a list of accounts.
-  static AccountSnapshot _snapshot(List<Account> accounts) {
-    if (accounts.isEmpty) return const AccountSnapshot.empty();
-
-    final active = accounts
-        .where((account) => account.status == AccountStatus.active)
-        .length;
-    final rateLimited = accounts
-        .where((account) => account.status == AccountStatus.rateLimited)
-        .length;
-    final total = accounts.fold<double>(
-      0,
-      (sum, account) => sum + account.globalRemaining,
-    );
-
-    return AccountSnapshot(
-      accounts: accounts,
-      activeCount: active,
-      rateLimitedCount: rateLimited,
-      globalRemaining: total / accounts.length,
-    );
-  }
 }
 
-/// The repository backed by the Rust host.
+/// Builds the aggregate counters from only the accounts in the snapshot.
+AccountSnapshot _snapshot(List<Account> accounts) {
+  if (accounts.isEmpty) return const AccountSnapshot.empty();
+
+  final active = accounts
+      .where((account) => account.status == AccountStatus.active)
+      .length;
+  final rateLimited = accounts
+      .where((account) => account.status == AccountStatus.rateLimited)
+      .length;
+  final measured = accounts
+      .where((account) => account.quotas.isNotEmpty)
+      .toList();
+  final total = measured.fold<double>(
+    0,
+    (sum, account) => sum + account.globalRemaining,
+  );
+
+  return AccountSnapshot(
+    accounts: accounts,
+    activeCount: active,
+    rateLimitedCount: rateLimited,
+    globalRemaining: measured.isEmpty ? 0 : total / measured.length,
+  );
+}
+
+/// The repository backed exclusively by the Rust host.
 ///
-/// When the host is not running, the repository falls back to the in process
-/// fake so the interface keeps working while the core is being developed.
+/// Host and provider failures are propagated to the caller.
 class HostAccountsRepository implements AccountsRepository {
-  HostAccountsRepository({HostClient? client, AccountsRepository? fallback})
-      : _client = client ?? HostClient(),
-        _fallback = fallback ?? MockAccountsRepository();
+  HostAccountsRepository({HostClient? client})
+    : _client = client ?? HostClient();
 
   final HostClient _client;
-  final AccountsRepository _fallback;
 
   bool _live = false;
 
-  /// Whether the last call was answered by the running host.
+  /// Whether a compatible host has been confirmed without a subsequent
+  /// connection or contract failure. Provider RPC errors do not change this.
   @override
   bool get isLive => _live;
 
-  @override
-  Future<AccountSnapshot> load() async {
+  Future<T> _callHost<T>(Future<T> Function() request) async {
     try {
-      final info = await _client.hostInfo();
-      if (!info.isCompatible) {
-        throw HostError(
-          -32000,
-          'the host speaks contract version ${info.contractVersion}',
-        );
-      }
+      return await request();
+    } on HostUnavailable {
+      _live = false;
+      rethrow;
+    } on HostError catch (error) {
+      if (error.isVersionMismatch) _live = false;
+      rethrow;
+    }
+  }
 
-      final payload = await _client.accountsList();
-      final accounts = _parseAccounts(payload);
-      _live = true;
-
-      final summary = payload['summary'] as Map<String, dynamic>?;
-      return AccountSnapshot(
-        accounts: accounts,
-        activeCount: (summary?['active'] as num?)?.toInt() ?? 0,
-        rateLimitedCount: (summary?['rateLimited'] as num?)?.toInt() ?? 0,
-        globalRemaining:
-            (summary?['globalRemaining'] as num?)?.toDouble() ?? 0,
+  @override
+  Future<AccountSnapshot> load() => _callHost(() async {
+    final info = await _client.hostInfo();
+    if (!info.isCompatible) {
+      throw HostError(
+        -32000,
+        'the host speaks contract version ${info.contractVersion}',
       );
-    } catch (_) {
-      _live = false;
-      return _fallback.load();
     }
-  }
+    _live = true;
+
+    final payload = await _client.accountsList();
+    return _snapshot(
+      _parseAccounts(payload).where((account) => !account.demo).toList(),
+    );
+  });
 
   @override
-  Future<void> setActive(String id) async {
-    if (!_live) return _fallback.setActive(id);
-    try {
-      await _client.setActiveAccount(id);
-    } catch (_) {
-      _live = false;
-      await _fallback.setActive(id);
-    }
-  }
+  Future<void> setActive(String id) =>
+      _callHost(() => _client.setActiveAccount(id));
 
   @override
-  Future<void> setSelected(String id, bool selected) async {
-    if (!_live) return _fallback.setSelected(id, selected);
-    try {
-      await _client.setAccountSelected(id, selected);
-    } catch (_) {
-      _live = false;
-      await _fallback.setSelected(id, selected);
-    }
-  }
+  Future<void> setSelected(String id, bool selected) =>
+      _callHost(() => _client.setAccountSelected(id, selected));
 
   @override
   Future<List<CatalogModel>> modelCatalog() async {
-    if (!_live) return _fallback.modelCatalog();
-    try {
-      final items = await _client.modelsCatalog();
-      return items
-          .map(
-            (item) => CatalogModel(
-              id: item['id'] as String? ?? '',
-              label: item['label'] as String? ?? '',
-              family: _parseFamily(item['family'] as String?),
-            ),
-          )
-          .toList(growable: false);
-    } catch (_) {
-      _live = false;
-      return _fallback.modelCatalog();
-    }
+    final items = await _callHost(_client.modelsCatalog);
+    return items
+        .map(
+          (item) => CatalogModel(
+            id: item['id'] as String? ?? '',
+            label: item['label'] as String? ?? '',
+            family: _parseFamily(item['family'] as String?),
+          ),
+        )
+        .toList(growable: false);
   }
 
   // --- Cloud accounts ---------------------------------------------------
 
   @override
   Future<ConnectSession> startConnect() async {
-    final payload = await _client.startConnect();
+    final payload = await _callHost(_client.startConnect);
     return ConnectSession(
       sessionId: payload['sessionId'] as String? ?? '',
       authorizationUrl: payload['authorizationUrl'] as String? ?? '',
@@ -309,60 +290,37 @@ class HostAccountsRepository implements AccountsRepository {
 
   @override
   Future<Account?> refreshQuota(String id) async {
-    if (!_live) return _fallback.refreshQuota(id);
-    try {
-      final payload = await _client.refreshQuota(id);
-      final accounts = _parseAccounts({'accounts': [payload]});
-      return accounts.isEmpty ? null : accounts.first;
-    } catch (_) {
-      _live = false;
-      return _fallback.refreshQuota(id);
-    }
+    final payload = await _callHost(() => _client.refreshQuota(id));
+    final accounts = _parseAccounts({
+      'accounts': [payload],
+    });
+    return accounts.isEmpty ? null : accounts.first;
   }
 
   @override
-  Future<void> removeAccount(String id) async {
-    if (!_live) return _fallback.removeAccount(id);
-    try {
-      await _client.removeAccount(id);
-    } catch (_) {
-      _live = false;
-      await _fallback.removeAccount(id);
-    }
-  }
+  Future<void> removeAccount(String id) =>
+      _callHost(() => _client.removeAccount(id));
 
   @override
   Future<List<ConnectedAccount>> connectedAccounts() async {
-    if (!_live) return _fallback.connectedAccounts();
-    try {
-      final items = await _client.connectedAccounts();
-      return items
-          .map(
-            (item) => ConnectedAccount(
-              accountId: item['accountId'] as String? ?? '',
-              email: item['email'] as String? ?? '',
-              plan: item['plan'] as String?,
-              projectId: item['projectId'] as String?,
-            ),
-          )
-          .toList(growable: false);
-    } catch (_) {
-      _live = false;
-      return _fallback.connectedAccounts();
-    }
+    final items = await _callHost(_client.connectedAccounts);
+    return items
+        .map(
+          (item) => ConnectedAccount(
+            accountId: item['accountId'] as String? ?? '',
+            email: item['email'] as String? ?? '',
+            plan: item['plan'] as String?,
+            projectId: item['projectId'] as String?,
+          ),
+        )
+        .toList(growable: false);
   }
 
   // --- Local proxy ------------------------------------------------------
 
   @override
-  Future<ProxyStatus> proxyStatus() async {
-    try {
-      return _parseProxyStatus(await _client.proxyStatus());
-    } catch (_) {
-      _live = false;
-      return _fallback.proxyStatus();
-    }
-  }
+  Future<ProxyStatus> proxyStatus() async =>
+      _parseProxyStatus(await _callHost(_client.proxyStatus));
 
   @override
   Future<ProxyStatus> startProxy({int? port}) async {
@@ -384,26 +342,14 @@ class HostAccountsRepository implements AccountsRepository {
 
   @override
   Future<List<TrafficRecord>> traffic({int limit = 100}) async {
-    try {
-      final items = await _client.traffic(limit: limit);
-      _live = true;
-      return items.map(_parseTraffic).toList(growable: false);
-    } catch (_) {
-      _live = false;
-      return _fallback.traffic(limit: limit);
-    }
+    final items = await _callHost(() => _client.traffic(limit: limit));
+    return items.map(_parseTraffic).toList(growable: false);
   }
 
   @override
   Future<List<Workspace>> workspaces() async {
-    try {
-      final items = await _client.workspaces();
-      _live = true;
-      return items.map(_parseWorkspace).toList(growable: false);
-    } catch (_) {
-      _live = false;
-      return _fallback.workspaces();
-    }
+    final items = await _callHost(_client.workspaces);
+    return items.map(_parseWorkspace).toList(growable: false);
   }
 
   /// Reads one workspace out of the payload of `workspaces.list`.
@@ -417,7 +363,9 @@ class HostAccountsRepository implements AccountsRepository {
       plan: plan.isEmpty ? '—' : plan,
       projectFolder: item['projectFolder'] as String? ?? '',
       profileFolder: item['profileFolder'] as String? ?? '',
-      lastActive: formatEpochMillis((item['lastActiveAt'] as num?)?.toInt() ?? 0),
+      lastActive: formatEpochMillis(
+        (item['lastActiveAt'] as num?)?.toInt() ?? 0,
+      ),
       state: switch (state) {
         'running' => WorkspaceState.running,
         'stopped' => WorkspaceState.stopped,
@@ -460,60 +408,79 @@ class HostAccountsRepository implements AccountsRepository {
     final items = payload['accounts'];
     if (items is! List) return const [];
 
-    return items.whereType<Map<String, dynamic>>().map((item) {
-      final quotas = _parseQuotas(item['quotas']);
-      final weekly = _parseWeeklyQuotas(item['weeklyQuotas']);
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map((item) {
+          final quotas = _parseQuotas(item['quotas']);
+          final weekly = _parseWeeklyQuotas(item['weeklyQuotas']);
 
-      return Account(
-        id: item['id'] as String? ?? '',
-        name: item['name'] as String? ?? '',
-        handle: item['handle'] as String? ?? '',
-        provider: item['provider'] as String? ?? '',
-        plan: item['plan'] as String? ?? '',
-        status: _parseStatus(item['status'] as String?),
-        credits: (item['credits'] as num?)?.toInt() ?? 0,
-        inUse: item['inUse'] as bool? ?? false,
-        recommended: item['recommended'] as bool? ?? false,
-        demo: item['demo'] as bool? ?? false,
-        quotas: quotas,
-        weeklyQuotas: weekly,
-      );
-    }).toList(growable: false);
+          return Account(
+            id: item['id'] as String? ?? '',
+            name: item['name'] as String? ?? '',
+            handle: item['handle'] as String? ?? '',
+            provider: item['provider'] as String? ?? '',
+            plan: item['plan'] as String? ?? '',
+            status: _parseStatus(item['status'] as String?),
+            credits: (item['credits'] as num?)?.toInt() ?? 0,
+            inUse: item['inUse'] as bool? ?? false,
+            recommended: item['recommended'] as bool? ?? false,
+            demo: item['demo'] as bool? ?? false,
+            quotaFetchedAt: (item['quotaFetchedAt'] as num?)?.toInt(),
+            quotaError: item['quotaError'] as String?,
+            quotas: quotas,
+            weeklyQuotas: weekly,
+          );
+        })
+        .toList(growable: false);
   }
 
   static List<ModelQuota> _parseQuotas(Object? raw) {
     if (raw is! List) return const [];
-    return raw.whereType<Map<String, dynamic>>().map((item) {
-      return ModelQuota(
-        name: item['name'] as String? ?? '',
-        family: _parseFamily(item['family'] as String?),
-        remaining: (item['remaining'] as num?)?.toDouble() ?? 0,
-        resetLabel: item['resetLabel'] as String? ?? '—',
-      );
-    }).toList(growable: false);
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .where((item) {
+          final value = item['remaining'];
+          return value is num && value.isFinite && value >= 0 && value <= 1;
+        })
+        .map((item) {
+          return ModelQuota(
+            name: item['name'] as String? ?? '',
+            family: _parseFamily(item['family'] as String?),
+            remaining: (item['remaining'] as num?)?.toDouble() ?? 0,
+            resetLabel: item['resetLabel'] as String? ?? '—',
+          );
+        })
+        .toList(growable: false);
   }
 
   static List<WeeklyQuota> _parseWeeklyQuotas(Object? raw) {
     if (raw is! List) return const [];
-    return raw.whereType<Map<String, dynamic>>().map((item) {
-      return WeeklyQuota(
-        groupId: item['groupId'] as String? ?? '',
-        remaining: (item['remaining'] as num?)?.toDouble() ?? 0,
-        resetLabel: item['resetLabel'] as String? ?? '—',
-      );
-    }).toList(growable: false);
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .where((item) {
+          final value = item['remaining'];
+          return value is num && value.isFinite && value >= 0 && value <= 1;
+        })
+        .map((item) {
+          return WeeklyQuota(
+            groupId: item['groupId'] as String? ?? '',
+            remaining: (item['remaining'] as num?)?.toDouble() ?? 0,
+            resetLabel: item['resetLabel'] as String? ?? '—',
+          );
+        })
+        .toList(growable: false);
   }
 
   static ModelFamily _parseFamily(String? raw) => switch (raw) {
-        'claude' => ModelFamily.claude,
-        'openai' => ModelFamily.openai,
-        _ => ModelFamily.gemini,
-      };
+    'claude' => ModelFamily.claude,
+    'openai' => ModelFamily.openai,
+    _ => ModelFamily.gemini,
+  };
 
   static AccountStatus _parseStatus(String? raw) => switch (raw) {
-        'idle' => AccountStatus.idle,
-        'rateLimited' => AccountStatus.rateLimited,
-        'error' => AccountStatus.error,
-        _ => AccountStatus.active,
-      };
+    'idle' => AccountStatus.idle,
+    'rateLimited' => AccountStatus.rateLimited,
+    'error' => AccountStatus.error,
+    _ => AccountStatus.active,
+  };
 }

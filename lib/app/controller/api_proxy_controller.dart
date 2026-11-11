@@ -11,11 +11,14 @@ enum ProxyProtocol { openai, anthropic }
 
 /// State of the local API proxy screen.
 class ApiProxyController extends GetXController {
+  ApiProxyController({AccountsRepository? repository})
+    : repository = repository ?? defaultAccountsRepository();
+
   /// The service health is owned by the shell so the sidebar stays in sync.
   final AppController app = Get.find<AppController>();
 
   /// The source of the proxy state. The local proxy lives in the Rust host.
-  final AccountsRepository repository = defaultAccountsRepository();
+  final AccountsRepository repository;
 
   /// The state of the local proxy.
   final Rx<ProxyStatus> proxy = const ProxyStatus.empty().obs;
@@ -27,11 +30,14 @@ class ApiProxyController extends GetXController {
 
   final RxBool revealKey = false.obs;
   final RxBool autoStart = true.obs;
+
+  /// Why the last start, stop or regenerate failed, if it did.
+  final Rx<String?> actionError = Rx<String?>(null);
   final RxInt tab = 0.obs;
   final RxList<ModelMapping> mappings = MockData.modelMappings.obs;
 
   /// The catalog the gateway can route to.
-  final RxList<CatalogModel> catalog = MockData.modelCatalog.obs;
+  final RxList<CatalogModel> catalog = <CatalogModel>[].obs;
 
   /// Every model id a client can send inside a request body.
   List<String> get modelIds => [for (final model in catalog) model.id];
@@ -154,9 +160,7 @@ print(response.choices[0].message.content)''';
   final TextEditingController timeoutController = TextEditingController(
     text: '120',
   );
-  final TextEditingController keyController = TextEditingController(
-    text: 'sk-9f4c21ab7de305687f2a1c0b4e8d3a95',
-  );
+  final TextEditingController keyController = TextEditingController();
 
   final List<String> networks = [
     'Local network (Wi-Fi)',
@@ -171,6 +175,7 @@ print(response.choices[0].message.content)''';
   void onInit() {
     super.onInit();
     loadProxy();
+    ever(app.hostReady, (_) => loadProxy());
   }
 
   /// Reads the state of the local proxy and its traffic.
@@ -182,8 +187,10 @@ print(response.choices[0].message.content)''';
       if (status.apiKey != null) keyController.text = status.apiKey!;
       // The port of the host is the truth: the field follows it.
       portController.text = status.port.toString();
-    } catch (_) {
-      // The host is not running, the screen keeps its placeholder state.
+    } catch (error) {
+      proxy.value = const ProxyStatus.empty();
+      keyController.clear();
+      actionError.value = error.toString();
     }
 
     try {
@@ -194,12 +201,16 @@ print(response.choices[0].message.content)''';
 
     try {
       final models = await repository.modelCatalog();
+      catalog.assignAll(models);
       if (models.isNotEmpty) {
-        catalog.assignAll(models);
         _alignToCatalog();
+      } else {
+        selectedExampleModel.value = '';
       }
-    } catch (_) {
-      // The screen keeps its placeholder catalog.
+    } catch (error) {
+      catalog.clear();
+      selectedExampleModel.value = '';
+      actionError.value = error.toString();
     }
   }
 
@@ -225,17 +236,27 @@ print(response.choices[0].message.content)''';
   /// Starts the local proxy.
   Future<void> startProxy() async {
     final port = int.tryParse(portController.text.trim());
-    final status = await repository.startProxy(port: port);
-    proxy.value = status;
-    app.proxyRunning.value = status.running;
-    portController.text = status.port.toString();
+    try {
+      final status = await repository.startProxy(port: port);
+      proxy.value = status;
+      app.proxyRunning.value = status.running;
+      portController.text = status.port.toString();
+      actionError.value = null;
+    } catch (error) {
+      actionError.value = error.toString();
+    }
   }
 
   /// Stops the local proxy.
   Future<void> stopProxy() async {
-    final status = await repository.stopProxy();
-    proxy.value = status;
-    app.proxyRunning.value = status.running;
+    try {
+      final status = await repository.stopProxy();
+      proxy.value = status;
+      app.proxyRunning.value = status.running;
+      actionError.value = null;
+    } catch (error) {
+      actionError.value = error.toString();
+    }
   }
 
   /// Replaces the key of the local proxy.
@@ -255,7 +276,11 @@ print(response.choices[0].message.content)''';
   }
 
   void regenerateKey() {
-    rotateKey();
+    rotateKey().then((_) => actionError.value = null).catchError((
+      Object error,
+    ) {
+      actionError.value = error.toString();
+    });
   }
 
   void restoreDefaults() {

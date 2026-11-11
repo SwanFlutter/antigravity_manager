@@ -45,7 +45,7 @@ class GlassTextField extends StatefulWidget {
 }
 
 class _GlassTextFieldState extends State<GlassTextField> {
-  bool _hidden = false;
+  bool _hidden = true;
 
   @override
   Widget build(BuildContext context) {
@@ -81,19 +81,22 @@ class _GlassTextFieldState extends State<GlassTextField> {
                 child: Icon(widget.icon, size: 17, color: palette.textMuted),
               ),
         prefixIconConstraints: const BoxConstraints(minWidth: 0),
-        suffixIcon: widget.obscure
-            ? IconButton(
-                onPressed: () => setState(() => _hidden = !_hidden),
-                icon: Icon(
-                  _hidden
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  size: 17,
-                  color: palette.textMuted,
-                ),
-                tooltip: _hidden ? 'Show' : 'Hide',
-              )
-            : widget.suffix,
+        // An obscured field keeps its visibility toggle unless the caller
+        // passes a suffix of its own (the API key row brings its own toggle).
+        suffixIcon: widget.suffix ??
+            (widget.obscure
+                ? IconButton(
+                    onPressed: () => setState(() => _hidden = !_hidden),
+                    icon: Icon(
+                      _hidden
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      size: 17,
+                      color: palette.textMuted,
+                    ),
+                    tooltip: _hidden ? 'Show' : 'Hide',
+                  )
+                : null),
       ),
     );
   }

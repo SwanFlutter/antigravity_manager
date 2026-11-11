@@ -1,6 +1,5 @@
 import 'package:get_x_master/get_x_master.dart';
 
-import '../../core/data/mock_data.dart';
 import '../../data/accounts_repository.dart';
 import 'app_controller.dart';
 
@@ -8,7 +7,7 @@ enum SettingsTab { general, models, proxy }
 
 class SettingsController extends GetXController {
   SettingsController({AccountsRepository? repository})
-      : repository = repository ?? defaultAccountsRepository();
+    : repository = repository ?? defaultAccountsRepository();
 
   final AccountsRepository repository;
 
@@ -36,7 +35,7 @@ class SettingsController extends GetXController {
   final RxBool creditsAlert = true.obs;
   final RxInt creditsThreshold = 5000.obs;
 
-  final RxList<String> allModels = MockData.catalogModelIds.obs;
+  final RxList<String> allModels = <String>[].obs;
 
   @override
   void onInit() {
@@ -50,11 +49,9 @@ class SettingsController extends GetXController {
   Future<void> loadModels() async {
     try {
       final catalog = await repository.modelCatalog();
-      if (catalog.isNotEmpty) {
-        allModels.assignAll([for (final model in catalog) model.id]);
-      }
+      allModels.assignAll([for (final model in catalog) model.id]);
     } catch (_) {
-      // The screen keeps its placeholder state.
+      allModels.clear();
     }
   }
 

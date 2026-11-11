@@ -19,7 +19,7 @@ use crate::repository::{AccountRepository, CloudRepository, RepositoryError};
 use rusqlite::{params, Connection, OptionalExtension};
 
 /// The schema version this build understands.
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 
 fn storage<E: std::fmt::Display>(error: E) -> RepositoryError {
     RepositoryError::Storage(error.to_string())
@@ -207,6 +207,18 @@ impl SqliteAccountRepository {
                 .map_err(storage)?;
         }
 
+        if current < 5 {
+            connection
+                .execute_batch(
+                    "BEGIN;
+                     ALTER TABLE accounts ADD COLUMN quota_fetched_at INTEGER;
+                     ALTER TABLE accounts ADD COLUMN quota_error TEXT;
+                     INSERT INTO schema_version (version) VALUES (5);
+                     COMMIT;",
+                )
+                .map_err(storage)?;
+        }
+
         Ok(())
     }
 
@@ -300,7 +312,7 @@ fn read_account(connection: &Connection, id: &str) -> Result<Option<Account>, Re
     let row = connection
         .query_row(
             "SELECT id, name, handle, provider, plan, status, credits, in_use, recommended,
-                    selected, demo
+                    selected, demo, quota_fetched_at, quota_error
              FROM accounts WHERE id = ?1",
             params![id],
             |row| {
@@ -316,6 +328,8 @@ fn read_account(connection: &Connection, id: &str) -> Result<Option<Account>, Re
                     row.get::<_, i64>(8)?,
                     row.get::<_, i64>(9)?,
                     row.get::<_, i64>(10)?,
+                    row.get::<_, Option<i64>>(11)?,
+                    row.get::<_, Option<String>>(12)?,
                 ))
             },
         )
@@ -334,6 +348,8 @@ fn read_account(connection: &Connection, id: &str) -> Result<Option<Account>, Re
         recommended,
         selected,
         demo,
+        quota_fetched_at,
+        quota_error,
     )) = row
     else {
         return Ok(None);
@@ -414,6 +430,8 @@ fn read_account(connection: &Connection, id: &str) -> Result<Option<Account>, Re
         recommended: recommended != 0,
         selected: selected != 0,
         demo: demo != 0,
+        quota_fetched_at,
+        quota_error,
         quotas,
         weekly_quotas,
     }))
@@ -703,11 +721,12 @@ impl AccountRepository for SqliteAccountRepository {
         tx.execute(
             "INSERT INTO accounts
                  (id, name, handle, provider, plan, status, credits, in_use, recommended,
-                  selected, position, demo)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                  selected, position, demo, quota_fetched_at, quota_error)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
              ON CONFLICT(id) DO UPDATE SET
                  name = ?2, handle = ?3, provider = ?4, plan = ?5, status = ?6,
-                 credits = ?7, in_use = ?8, recommended = ?9, selected = ?10, demo = ?12",
+                 credits = ?7, in_use = ?8, recommended = ?9, selected = ?10, demo = ?12,
+                 quota_fetched_at = ?13, quota_error = ?14",
             params![
                 account.id,
                 account.name,
@@ -721,6 +740,8 @@ impl AccountRepository for SqliteAccountRepository {
                 account.selected as i64,
                 position,
                 account.demo as i64,
+                account.quota_fetched_at,
+                account.quota_error,
             ],
         )
         .map_err(storage)?;
@@ -766,6 +787,21 @@ impl AccountRepository for SqliteAccountRepository {
         }
 
         tx.commit().map_err(storage)
+    }
+
+    fn set_quota_error(&self, id: &str, error: &str) -> Result<(), RepositoryError> {
+        let changed = self.lock().execute(
+            "UPDATE accounts SET quota_error = ?2 WHERE id = ?1",
+            params![id, error],
+        ).map_err(storage)?;
+        if changed == 0 {
+            return Err(RepositoryError::NotFound(id.to_string()));
+        }
+        Ok(())
+    }
+
+    fn merge_models(&self, models: &[Model]) -> Result<(), RepositoryError> {
+        self.save_catalog(models, &[])
     }
 
     fn set_active_account(&self, id: &str) -> Result<(), RepositoryError> {

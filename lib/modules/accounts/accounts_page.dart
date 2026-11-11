@@ -65,8 +65,67 @@ class AccountsPage extends ReactiveGetView<AccountsController> {
             ],
           ),
           const _SummaryRow(),
-          const SizedBox(height: Insets.md),
+          const SizedBox(height: Insets.sm),
+          Padding(
+            padding: const EdgeInsets.only(bottom: Insets.md),
+            child: Container(
+              padding: const EdgeInsets.all(Insets.md),
+              decoration: BoxDecoration(
+                color: context.palette.accent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: context.palette.accent.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.shield_outlined, color: context.palette.accent, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      Messages.accountsProxyTip.tr,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: context.palette.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: Insets.sm),
           const _ConnectPanel(),
+          Obx(() {
+            final error = controller.loadError.value;
+            if (controller.loading.value) {
+              return const Padding(
+                padding: EdgeInsets.only(bottom: Insets.md),
+                child: LinearProgressIndicator(),
+              );
+            }
+            if (error == null) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: Insets.md),
+              child: GlassPanel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SelectableText(
+                      error,
+                      style: TextStyle(color: context.palette.danger),
+                    ),
+                    const SizedBox(height: Insets.sm),
+                    AppButton(
+                      label: Messages.commonRetry.tr,
+                      icon: Icons.refresh_rounded,
+                      onPressed: controller.loadAccounts,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
           const _Toolbar(),
           const SizedBox(height: Insets.lg),
           _AccountGallery(accountCount: accountCount),
@@ -112,9 +171,13 @@ class _SummaryRow extends StatelessWidget {
           ),
           StatCard(
             label: Messages.accountsGlobalQuota.tr,
-            value: '${(remaining * 100).round()}%',
+            value: remaining == null ? '—' : '${(remaining * 100).round()}%',
             icon: Icons.donut_large_rounded,
-            tone: remaining < 0.4 ? BadgeTone.warning : BadgeTone.success,
+            tone: remaining == null
+                ? BadgeTone.neutral
+                : remaining < 0.4
+                ? BadgeTone.warning
+                : BadgeTone.success,
             meter: remaining,
             footnote: Messages.accountsGlobalQuotaHint.tr,
           ),
@@ -156,8 +219,8 @@ class _ConnectPanelState extends State<_ConnectPanel> {
       final tone = status == 'completed'
           ? palette.success
           : (status == 'failed' || status == 'expired'
-              ? palette.danger
-              : palette.accent);
+                ? palette.danger
+                : palette.accent);
 
       return Padding(
         padding: const EdgeInsets.only(bottom: Insets.md),
@@ -181,14 +244,11 @@ class _ConnectPanelState extends State<_ConnectPanel> {
                 ],
               ),
               const SizedBox(height: Insets.sm),
-              Text(
-                switch (status) {
-                  'completed' => Messages.accountsConnectDone.tr,
-                  'failed' || 'expired' => Messages.accountsConnectFailed.tr,
-                  _ => Messages.accountsConnectWaiting.tr,
-                },
-                style: TextStyle(fontSize: 12.5, color: tone),
-              ),
+              Text(switch (status) {
+                'completed' => Messages.accountsConnectDone.tr,
+                'failed' || 'expired' => Messages.accountsConnectFailed.tr,
+                _ => Messages.accountsConnectWaiting.tr,
+              }, style: TextStyle(fontSize: 12.5, color: tone)),
               if (controller.connectEmail.value != null) ...[
                 const SizedBox(height: 4),
                 Text(
@@ -217,6 +277,27 @@ class _ConnectPanelState extends State<_ConnectPanel> {
                     fontFamily: kMonoFamily,
                   ),
                 ),
+                const SizedBox(height: Insets.sm),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: AppButton(
+                    label: Messages.accountsConnectOpenBrowser.tr,
+                    icon: Icons.open_in_new_rounded,
+                    variant: AppButtonVariant.secondary,
+                    size: AppButtonSize.small,
+                    onPressed: controller.openConnectUrl,
+                  ),
+                ),
+                if (!controller.browserOpened.value) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    Messages.accountsConnectOpenHint.tr,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: palette.textSecondary,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: Insets.sm),
                 Text(
                   Messages.accountsConnectManual.tr,
@@ -312,10 +393,17 @@ class _Toolbar extends StatelessWidget {
                   onChanged: (value) => controller.autoSwitch.value = value,
                 ),
               ),
-              AppIconButton(
-                icon: Icons.refresh_rounded,
-                tooltip: Messages.commonRefresh.tr,
-                onPressed: () {},
+              Obx(
+                () => AppButton(
+                  label: Messages.accountsRefreshQuota.tr,
+                  icon: Icons.refresh_rounded,
+                  variant: AppButtonVariant.ghost,
+                  size: AppButtonSize.small,
+                  loading: controller.refreshing.value,
+                  onPressed: controller.loading.value
+                      ? null
+                      : controller.refreshAllQuotas,
+                ),
               ),
             ],
           ),
@@ -449,6 +537,11 @@ class _AccountGallery extends StatelessWidget {
                   minimalMode: controller.minimalMode.value,
                   onUse: () => controller.useAccount(account),
                   onToggleSelect: () => controller.toggleSelected(account.id),
+                  onRefresh: account.demo
+                      ? null
+                      : () => controller.refreshQuota(account),
+                  refreshing: controller.refreshingIds.contains(account.id),
+                  quotaError: controller.quotaErrors[account.id],
                 ),
             ],
           ),

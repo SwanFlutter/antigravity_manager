@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../data/cloud_models.dart';
+
 import 'package:get_x_master/get_x_master.dart';
 
 import '../../../I18n/messages.dart';
@@ -24,6 +29,9 @@ class AccountCard extends StatefulWidget {
     required this.onUse,
     required this.onToggleSelect,
     required this.minimalMode,
+    this.onRefresh,
+    this.refreshing = false,
+    this.quotaError,
   });
 
   final Account account;
@@ -32,6 +40,9 @@ class AccountCard extends StatefulWidget {
   final VoidCallback onUse;
   final VoidCallback onToggleSelect;
   final bool minimalMode;
+  final VoidCallback? onRefresh;
+  final bool refreshing;
+  final String? quotaError;
 
   @override
   State<AccountCard> createState() => _AccountCardState();
@@ -47,11 +58,11 @@ class _AccountCardState extends State<AccountCard> {
   }
 
   BadgeTone get _statusTone => switch (widget.account.status) {
-        AccountStatus.active => BadgeTone.success,
-        AccountStatus.idle => BadgeTone.neutral,
-        AccountStatus.rateLimited => BadgeTone.warning,
-        AccountStatus.error => BadgeTone.danger,
-      };
+    AccountStatus.active => BadgeTone.success,
+    AccountStatus.idle => BadgeTone.neutral,
+    AccountStatus.rateLimited => BadgeTone.warning,
+    AccountStatus.error => BadgeTone.danger,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -147,8 +158,8 @@ class _AccountCardState extends State<AccountCard> {
                             const SizedBox(width: 5),
                             Text(
                               widget.active
-                                      ? Messages.accountsInUse.tr
-                                      : Messages.accountsNotInUse.tr,
+                                  ? Messages.accountsInUse.tr
+                                  : Messages.accountsNotInUse.tr,
                               style: TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w600,
@@ -184,7 +195,10 @@ class _AccountCardState extends State<AccountCard> {
                         icon: Icons.auto_awesome_rounded,
                       ),
                     AppBadge(
-                      label: Messages.accountsCredits.tr.replaceAll('{n}', '${account.credits}'),
+                      label: Messages.accountsCredits.tr.replaceAll(
+                        '{n}',
+                        '${account.credits}',
+                      ),
                       tone: BadgeTone.neutral,
                       icon: Icons.toll_rounded,
                     ),
@@ -206,12 +220,21 @@ class _AccountCardState extends State<AccountCard> {
                     ),
                     const SizedBox(width: 10),
                     AppIconButton(
-                      icon: Icons.expand_more_rounded,
-                      tooltip: Messages.accountsMoreActions.tr,
-                      onPressed: () {},
+                      icon: widget.refreshing
+                          ? Icons.hourglass_top_rounded
+                          : Icons.refresh_rounded,
+                      tooltip: Messages.accountsRefreshQuota.tr,
+                      onPressed: widget.refreshing ? null : widget.onRefresh,
                     ),
                     const SizedBox(width: 6),
                     AppOverflowMenu<String>(
+                      onSelected: (value) {
+                        if (value == 'refresh' && !widget.refreshing) {
+                          widget.onRefresh?.call();
+                        } else if (value == 'copy') {
+                          Clipboard.setData(ClipboardData(text: account.id));
+                        }
+                      },
                       items: [
                         AppMenuEntry(
                           label: Messages.accountsOpenInPlayground.tr,
@@ -243,12 +266,17 @@ class _AccountCardState extends State<AccountCard> {
           ),
           const LuminousDivider(),
           Expanded(
-            child: widget.minimalMode
+            child:
+                widget.minimalMode &&
+                    account.quotas.isNotEmpty &&
+                    (widget.quotaError ?? account.quotaError) == null
                 ? _MinimalBody(account: account)
                 : _QuotaBody(
                     account: account,
                     families: families,
                     scrollController: _scrollController,
+                    error: widget.quotaError ?? account.quotaError,
+                    onRefresh: widget.refreshing ? null : widget.onRefresh,
                   ),
           ),
         ],
@@ -262,11 +290,15 @@ class _QuotaBody extends StatelessWidget {
     required this.account,
     required this.families,
     required this.scrollController,
+    required this.error,
+    required this.onRefresh,
   });
 
   final Account account;
   final List<ModelFamily> families;
   final ScrollController scrollController;
+  final String? error;
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -282,10 +314,98 @@ class _QuotaBody extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _WeeklyQuotaSection(account: account),
-            const SizedBox(height: 6),
-            const LuminousDivider(),
-            const SizedBox(height: 18),
+            if (!account.demo) ...[
+              Text(
+                account.quotaFetchedAt == null
+                    ? Messages.accountsQuotaCached.tr
+                    : Messages.accountsQuotaFetched.tr.replaceAll(
+                        '{t}',
+                        formatEpochMillis(account.quotaFetchedAt!),
+                      ),
+                style: TextStyle(fontSize: 11.5, color: palette.textMuted),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (error != null) ...[
+              Builder(
+                builder: (context) {
+                  final details = AccountErrorDetails.parse(error!);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        Messages.accountsQuotaFailed.tr,
+                        style: TextStyle(fontSize: 12, color: palette.warning),
+                      ),
+                      const SizedBox(height: 8),
+                      SelectableText(
+                        error!,
+                        style: TextStyle(fontSize: 12, color: palette.danger),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (details.validationUrl != null || details.isValidationRequired)
+                            AppButton(
+                              label: Messages.accountsVerifyAccount.tr,
+                              icon: Icons.open_in_new_rounded,
+                              size: AppButtonSize.small,
+                              variant: AppButtonVariant.primary,
+                              onPressed: () {
+                                final target = details.validationUrl ?? 'https://accounts.google.com';
+                                launchUrl(Uri.parse(target));
+                              },
+                            ),
+                          if (details.appealUrl != null || details.isTosViolation)
+                            AppButton(
+                              label: Messages.accountsSubmitAppeal.tr,
+                              icon: Icons.gavel_rounded,
+                              size: AppButtonSize.small,
+                              variant: AppButtonVariant.secondary,
+                              onPressed: () {
+                                final target = details.appealUrl ?? 'https://forms.gle/hGzM9MEUv2azZsrb9';
+                                launchUrl(Uri.parse(target));
+                              },
+                            ),
+                          AppButton(
+                            label: Messages.commonCopy.tr,
+                            icon: Icons.copy_rounded,
+                            size: AppButtonSize.small,
+                            variant: AppButtonVariant.ghost,
+                            onPressed: () => Clipboard.setData(ClipboardData(text: error!)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (families.isEmpty) ...[
+              Text(
+                Messages.accountsQuotaUnavailable.tr,
+                style: TextStyle(fontSize: 12.5, color: palette.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              if (onRefresh != null)
+                AppButton(
+                  label: Messages.accountsRefreshQuota.tr,
+                  icon: Icons.refresh_rounded,
+                  variant: AppButtonVariant.secondary,
+                  size: AppButtonSize.small,
+                  onPressed: onRefresh,
+                ),
+              const SizedBox(height: 12),
+            ],
+            if (account.weeklyQuotas.isNotEmpty) ...[
+              _WeeklyQuotaSection(account: account),
+              const SizedBox(height: 6),
+              const LuminousDivider(),
+              const SizedBox(height: 18),
+            ],
             for (final family in families) ...[
               Row(
                 children: [
@@ -307,9 +427,10 @@ class _QuotaBody extends StatelessWidget {
                 QuotaRow(
                   model: quota.name,
                   remaining: quota.remaining,
-                  resetLabel: Messages.accountsReset
-                      .tr
-                      .replaceAll('{t}', quota.resetLabel),
+                  resetLabel: Messages.accountsReset.tr.replaceAll(
+                    '{t}',
+                    quota.resetLabel,
+                  ),
                 ),
               const SizedBox(height: 12),
             ],
@@ -402,10 +523,10 @@ class _WeeklyQuotaRow extends StatelessWidget {
     final tone = remaining <= 0.001
         ? palette.textMuted
         : remaining < 0.2
-            ? palette.danger
-            : remaining < 0.5
-                ? palette.warning
-                : palette.success;
+        ? palette.danger
+        : remaining < 0.5
+        ? palette.warning
+        : palette.success;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -504,9 +625,7 @@ class _MinimalBody extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 14),
-              Expanded(
-                child: QuotaBar(remaining: remaining, height: 8),
-              ),
+              Expanded(child: QuotaBar(remaining: remaining, height: 8)),
             ],
           ),
           const SizedBox(height: 14),

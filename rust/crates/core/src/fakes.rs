@@ -50,6 +50,25 @@ impl AccountRepository for InMemoryAccountRepository {
         Ok(())
     }
 
+    fn set_quota_error(&self, id: &str, error: &str) -> Result<(), RepositoryError> {
+        let mut accounts = self.accounts.lock().expect("lock");
+        let account = accounts.iter_mut().find(|account| account.id == id)
+            .ok_or_else(|| RepositoryError::NotFound(id.to_string()))?;
+        account.quota_error = Some(error.to_string());
+        Ok(())
+    }
+
+    fn merge_models(&self, models: &[Model]) -> Result<(), RepositoryError> {
+        let mut catalog = self.catalog.lock().expect("lock");
+        for model in models {
+            match catalog.iter_mut().find(|entry| entry.id == model.id) {
+                Some(entry) => *entry = model.clone(),
+                None => catalog.push(model.clone()),
+            }
+        }
+        Ok(())
+    }
+
     fn set_active_account(&self, id: &str) -> Result<(), RepositoryError> {
         let mut accounts = self.accounts.lock().expect("lock");
         let mut found = false;

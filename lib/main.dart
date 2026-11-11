@@ -28,7 +28,7 @@ class AntigravityApp extends StatelessWidget {
         ? ThemeMode.dark
         : ThemeMode.light;
     return GetMaterialApp(
-      title: 'ادمین _ نوبت نو',
+      title: 'AntigravityManager',
       debugShowCheckedModeBanner: false,
       textDirection: TextDirection.rtl,
       locale: const Locale('en', 'US'),
@@ -36,6 +36,7 @@ class AntigravityApp extends StatelessWidget {
       translations: AppTranslations(),
       initialBinding: AppBinding(),
       defaultTransition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 700),
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: initialTheme,

@@ -13,7 +13,6 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use antigravity_core::cloud::QuotaGroup;
-use antigravity_core::domain::ModelQuota;
 use futures::future::BoxFuture;
 use futures::stream::{Stream, StreamExt};
 use serde_json::Value;
@@ -22,7 +21,7 @@ pub mod mapping;
 pub mod time;
 
 pub use mapping::{
-    map_model_quotas, map_project_context, map_quota_groups, model_family_for, ProjectContext,
+    map_model_quotas, map_project_context, map_quota_groups, model_family_for, ModelQuotaSnapshot, ProjectContext,
 };
 pub use time::{now_millis, parse_rfc3339_millis};
 
@@ -233,7 +232,7 @@ impl GoogleClient {
         {
             let mut query = url.query_pairs_mut();
             query.append_pair("access_type", "offline");
-            query.append_pair("prompt", "consent");
+            query.append_pair("prompt", "select_account consent");
             query.append_pair("response_type", "code");
             query.append_pair("include_granted_scopes", "true");
             query.append_pair("client_id", &client.client_id);
@@ -303,7 +302,7 @@ impl GoogleClient {
         if !status.is_success() {
             return Err(GoogleError::Upstream {
                 status: status.as_u16(),
-                message: sanitize_message(&body),
+                message: sanitize_message(&body, &[access_token]),
             });
         }
 
@@ -336,8 +335,8 @@ impl GoogleClient {
     /// The project, the plan and the credits of the connected account.
     ///
     /// The endpoints are tried in the order of
-    /// [`PROJECT_CONTEXT_ENDPOINTS`]. A failing endpoint does not stop the
-    /// lookup, the error of the last endpoint is reported.
+    /// [`PROJECT_CONTEXT_ENDPOINTS`]. Authentication and permission denials
+    /// stop the lookup; otherwise the error of the last endpoint is reported.
     pub async fn load_project(&self, access_token: &str) -> Result<ProjectContext, GoogleError> {
         // The upstream application identifies itself as the Antigravity
         // client, otherwise Google does not return the project of the account.
@@ -363,32 +362,17 @@ impl GoogleClient {
         &self,
         access_token: &str,
         project: Option<&str>,
-    ) -> Result<Vec<ModelQuota>, GoogleError> {
-        let payload = match self
+    ) -> Result<ModelQuotaSnapshot, GoogleError> {
+        let payload = self
             .post_json_with_fallback(
                 &MODEL_QUOTA_ENDPOINTS,
                 access_token,
                 &project_body(project),
                 false,
             )
-            .await
-        {
-            Ok(payload) => payload,
-            // Google rejects the project of some accounts. The answer without
-            // the project still carries the quota.
-            Err(GoogleError::Upstream { status: 403, .. }) if project.is_some() => {
-                self.post_json_with_fallback(
-                    &MODEL_QUOTA_ENDPOINTS,
-                    access_token,
-                    &Value::Object(serde_json::Map::new()),
-                    false,
-                )
-                .await?
-            }
-            Err(error) => return Err(error),
-        };
+            .await?;
 
-        Ok(map_model_quotas(&payload, now_millis()))
+        map_model_quotas(&payload, now_millis())
     }
 
     /// The weekly allowance of the model groups of the connected account.
@@ -402,27 +386,14 @@ impl GoogleClient {
         access_token: &str,
         project: Option<&str>,
     ) -> Result<Vec<QuotaGroup>, GoogleError> {
-        let payload = match self
+        let payload = self
             .post_json_with_fallback(
                 &QUOTA_GROUP_ENDPOINTS,
                 access_token,
                 &project_body(project),
                 true,
             )
-            .await
-        {
-            Ok(payload) => payload,
-            Err(GoogleError::Upstream { status: 403, .. }) if project.is_some() => {
-                self.post_json_with_fallback(
-                    &QUOTA_GROUP_ENDPOINTS,
-                    access_token,
-                    &Value::Object(serde_json::Map::new()),
-                    true,
-                )
-                .await?
-            }
-            Err(error) => return Err(error),
-        };
+            .await?;
 
         Ok(map_quota_groups(&payload))
     }
@@ -472,10 +443,14 @@ impl GoogleClient {
                 Ok(response) => {
                     let status = response.status();
                     let body = response.text().await.unwrap_or_default();
-                    last_error = Some(GoogleError::Upstream {
+                    let error = GoogleError::Upstream {
                         status: status.as_u16(),
-                        message: sanitize_message(&body),
-                    });
+                        message: sanitize_message(&body, &[access_token]),
+                    };
+                    if !should_retry_endpoint(&error) {
+                        return Err(error);
+                    }
+                    last_error = Some(error);
                 }
                 Err(error) => {
                     last_error = Some(GoogleError::Network(error.to_string()));
@@ -507,9 +482,14 @@ impl GoogleClient {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
         if !status.is_success() {
+            let secrets: Vec<&str> = form
+                .iter()
+                .filter(|(key, _)| is_secret_field(key) || *key == "code")
+                .map(|(_, value)| *value)
+                .collect();
             return Err(GoogleError::Upstream {
                 status: status.as_u16(),
-                message: sanitize_message(&body),
+                message: sanitize_message(&body, &secrets),
             });
         }
 
@@ -518,7 +498,8 @@ impl GoogleClient {
 
     /// Posts a JSON body to the given endpoints until one of them answers.
     ///
-    /// The error of the last endpoint is reported when none of them answers.
+    /// Authentication and permission denials are returned immediately.
+    /// Otherwise the error of the last endpoint is reported.
     async fn post_json_with_fallback(
         &self,
         endpoints: &[&str],
@@ -554,10 +535,14 @@ impl GoogleClient {
                 Ok(response) => {
                     let status = response.status();
                     let body = response.text().await.unwrap_or_default();
-                    last_error = Some(GoogleError::Upstream {
+                    let error = GoogleError::Upstream {
                         status: status.as_u16(),
-                        message: sanitize_message(&body),
-                    });
+                        message: sanitize_message(&body, &[access_token]),
+                    };
+                    if !should_retry_endpoint(&error) {
+                        return Err(error);
+                    }
+                    last_error = Some(error);
                 }
                 Err(error) => {
                     last_error = Some(GoogleError::Network(error.to_string()));
@@ -642,67 +627,157 @@ fn unwrap_generation_response(payload: Value) -> Value {
     }
 }
 
-/// Shortens the body of a failed request and removes the secrets from it.
-///
-/// The message never carries a token: it is meant for a log and for the
-/// interface.
-fn sanitize_message(body: &str) -> String {
-    let redacted = match serde_json::from_str::<Value>(body) {
-        Ok(Value::Object(_)) => {
-            let mut value: Value = serde_json::from_str(body).unwrap_or(Value::Null);
-            redact_json(&mut value);
-            value.to_string()
+fn should_retry_endpoint(error: &GoogleError) -> bool {
+    !matches!(
+        error,
+        GoogleError::Upstream {
+            status: 401 | 403,
+            ..
         }
-        _ => redact_text(body),
-    };
-
-    let mut excerpt: String = redacted.chars().take(300).collect();
-    if excerpt.chars().count() < redacted.chars().count() {
-        excerpt.push('…');
-    }
-    excerpt
+    )
 }
 
-/// Removes the secret fields of a JSON answer.
-fn redact_json(value: &mut Value) {
+/// Preserves the complete provider error while removing credentials.
+pub fn sanitize_message(body: &str, secrets: &[&str]) -> String {
+    match serde_json::from_str::<Value>(body) {
+        Ok(mut value) => {
+            redact_json(&mut value, secrets);
+            value.to_string()
+        }
+        Err(_) => redact_text(body, secrets),
+    }
+}
+
+fn is_secret_field(key: &str) -> bool {
+    let lowered = key.to_ascii_lowercase().replace(['_', '-'], "");
+    lowered.contains("token")
+        || lowered.contains("secret")
+        || lowered.contains("authorization")
+        || lowered.contains("password")
+        || lowered.contains("apikey")
+}
+
+fn redact_json(value: &mut Value, secrets: &[&str]) {
     match value {
         Value::Object(map) => {
             for (key, entry) in map.iter_mut() {
-                let lowered = key.to_ascii_lowercase();
-                if lowered.contains("token")
-                    || lowered.contains("secret")
-                    || lowered.contains("authorization")
-                {
+                if is_secret_field(key) {
                     *entry = Value::String("[redacted]".to_string());
                 } else {
-                    redact_json(entry);
+                    redact_json(entry, secrets);
                 }
             }
         }
         Value::Array(entries) => {
             for entry in entries {
-                redact_json(entry);
+                redact_json(entry, secrets);
             }
         }
+        Value::String(text) => *text = redact_text(text, secrets),
         _ => {}
     }
 }
 
-/// Removes the token shaped words of a plain text answer.
-fn redact_text(body: &str) -> String {
-    body.split_whitespace()
-        .map(|word| {
-            if word.starts_with("ya29.")
-                || word.starts_with("1//")
-                || (word.starts_with("eyJ") && word.contains('.'))
-            {
-                "[redacted]".to_string()
-            } else {
-                word.to_string()
+fn is_field_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')
+}
+
+fn credential_range(text: &str, value: &str) -> (usize, usize) {
+    let start = text.len() - value.len();
+    if value.starts_with('"') || value.starts_with('\'') {
+        let quote = value.as_bytes()[0];
+        let mut escaped = false;
+        for (index, byte) in value.bytes().enumerate().skip(1) {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == quote {
+                return (start + 1, start + index);
             }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+        }
+        return (start + 1, text.len());
+    }
+    let scheme_len = value.find(char::is_whitespace).unwrap_or(value.len());
+    let scheme = &value[..scheme_len];
+    let credential = if scheme.eq_ignore_ascii_case("bearer") || scheme.eq_ignore_ascii_case("basic") {
+        value[scheme_len..].trim_start()
+    } else {
+        value
+    };
+    let length = if credential.starts_with("[redacted]") {
+        "[redacted]".len()
+    } else {
+        credential
+            .find(|ch: char| ch.is_whitespace() || "\"'<>&,;()[]{}".contains(ch))
+            .unwrap_or(credential.len())
+    };
+    (start, text.len() - credential.len() + length)
+}
+
+fn redact_text(body: &str, secrets: &[&str]) -> String {
+    let mut body = body.to_string();
+    let mut secrets = secrets.to_vec();
+    secrets.sort_by_key(|secret| std::cmp::Reverse(secret.len()));
+    for secret in secrets {
+        if !secret.is_empty() {
+            body = body.replace(secret, "[redacted]");
+        }
+    }
+
+    let mut redacted = String::with_capacity(body.len());
+    let mut index = 0;
+    while index < body.len() {
+        let text = &body[index..];
+        if text.starts_with("ya29.")
+            || text.starts_with("1//")
+            || text.starts_with("eyJ")
+            || text.starts_with("GOCSPX-")
+            || text.starts_with("AIza")
+        {
+            let length = text
+                .bytes()
+                .take_while(|byte| byte.is_ascii_alphanumeric() || b"-._~+/=%".contains(byte))
+                .count();
+            if !text.starts_with("eyJ") || text[..length].contains('.') {
+                redacted.push_str("[redacted]");
+                index += length;
+                continue;
+            }
+        }
+
+        if index == 0 || !is_field_byte(body.as_bytes()[index - 1]) {
+            let length = text.bytes().take_while(|byte| is_field_byte(*byte)).count();
+            let field = &text[..length];
+            let rest = &text[length..];
+            let value = if (field.eq_ignore_ascii_case("bearer") || field.eq_ignore_ascii_case("basic"))
+                && rest.starts_with(char::is_whitespace)
+            {
+                Some(rest.trim_start())
+            } else if is_secret_field(field) {
+                let rest = rest.trim_start_matches(['"', '\'']).trim_start();
+                rest.strip_prefix(':')
+                    .or_else(|| rest.strip_prefix('='))
+                    .map(str::trim_start)
+            } else {
+                None
+            };
+            if let Some(value) = value {
+                let (start, end) = credential_range(text, value);
+                if end > start {
+                    redacted.push_str(&text[..start]);
+                    redacted.push_str("[redacted]");
+                    index += end;
+                    continue;
+                }
+            }
+        }
+
+        let ch = text.chars().next().expect("the remaining text is nonempty");
+        redacted.push(ch);
+        index += ch.len_utf8();
+    }
+    redacted
 }
 
 #[cfg(test)]
@@ -740,7 +815,10 @@ mod tests {
         };
 
         assert_eq!(get("access_type"), Some("offline"));
-        assert_eq!(get("prompt"), Some("consent"));
+        assert_eq!(get("prompt"), Some("select_account consent"));
+        assert_eq!(get("login_hint"), None);
+        assert_eq!(get("authuser"), None);
+        assert_eq!(get("client_secret"), None);
         assert_eq!(get("response_type"), Some("code"));
         assert_eq!(get("include_granted_scopes"), Some("true"));
         assert_eq!(get("client_id"), Some(DEFAULT_CLIENT_ID));
@@ -865,27 +943,219 @@ mod tests {
     }
 
     #[test]
-    fn shortens_and_redacts_the_message_of_a_failure() {
+    fn preserves_the_complete_structured_policy_error_and_appeal_metadata() {
+        let explanation = "This account is denied access under the terms of service. ".repeat(30);
         let body = json!({
-            "error": "invalid_grant",
-            "access_token": "ya29.secret",
-            "detail": "x".repeat(400)
-        })
-        .to_string();
-
-        let message = sanitize_message(&body);
-
-        assert!(!message.contains("ya29.secret"));
-        assert!(message.contains("[redacted]"));
-        assert!(message.chars().count() <= 301);
+            "error": {
+                "code": 403,
+                "status": "PERMISSION_DENIED",
+                "message": format!("{explanation} Credential (ya29.embedded) was rejected."),
+                "details": [
+                    {
+                        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                        "reason": "TOS_VIOLATION",
+                        "domain": "cloudcode-pa.googleapis.com",
+                        "metadata": {
+                            "appealUrl": "https://support.google.com/appeal?case=case-123&source=cloudcode",
+                            "appealInstructions": "Include the complete error and reference case-123.",
+                            "access_token": "opaque-access-value",
+                            "restriction": "ACCOUNT_RESTRICTED"
+                        }
+                    },
+                    {
+                        "@type": "type.googleapis.com/google.rpc.Help",
+                        "links": [{
+                            "description": "Appeal the restriction",
+                            "url": "https://support.google.com/appeal?case=case-123"
+                        }]
+                    }
+                ]
+            }
+        });
+        let message = sanitize_message(&body.to_string(), &["opaque-access-value"]);
+        assert!(message.len() > 1_000);
+        let parsed: Value = serde_json::from_str(&message).expect("the full JSON stays valid");
+        let mut expected = body;
+        expected["error"]["message"] = json!(format!(
+            "{explanation} Credential ([redacted]) was rejected."
+        ));
+        expected["error"]["details"][0]["metadata"]["access_token"] = json!("[redacted]");
+        assert_eq!(parsed, expected);
+        assert!(!message.contains("ya29.embedded"));
+        assert!(!message.contains("opaque-access-value"));
     }
 
     #[test]
-    fn redacts_the_tokens_of_a_plain_text_answer() {
-        let message = sanitize_message("the token ya29.abcdef was rejected");
+    fn redacts_nested_fields_and_credentials_embedded_in_json_strings() {
+        let body = json!({
+            "message": "Rejected (ya29.access), [1//refresh], jwt=eyJheader.payload.signature; secret=GOCSPX-client-value",
+            "details": [{
+                "AccessToken": "opaque-access",
+                "client_secret": {"nested": "opaque-client-secret"},
+                "AUTHORIZATION": "Bearer opaque-auth",
+                "api-key": "opaque-key",
+                "password": "opaque-password",
+                "messages": [
+                    "Authorization: bEaReR opaque-bearer; appeal is available",
+                    "client_secret=opaque-secret&case=123",
+                    "https://example.test/appeal?access_token=opaque-query&case=123"
+                ]
+            }]
+        });
+        let message = sanitize_message(&body.to_string(), &[]);
+        let parsed: Value = serde_json::from_str(&message).unwrap();
+        assert_eq!(
+            parsed,
+            json!({
+                "message": "Rejected ([redacted]), [[redacted]], jwt=[redacted]; secret=[redacted]",
+                "details": [{
+                    "AccessToken": "[redacted]",
+                    "client_secret": "[redacted]",
+                    "AUTHORIZATION": "[redacted]",
+                    "api-key": "[redacted]",
+                    "password": "[redacted]",
+                    "messages": [
+                        "Authorization: [redacted]; appeal is available",
+                        "client_secret=[redacted]&case=123",
+                        "https://example.test/appeal?access_token=[redacted]&case=123"
+                    ]
+                }]
+            })
+        );
+    }
 
-        assert!(!message.contains("ya29.abcdef"));
-        assert!(message.contains("[redacted]"));
+    #[test]
+    fn redacts_json_arrays_and_scalar_strings_without_breaking_json() {
+        for (body, expected) in [
+            (
+                json!(["(ya29.access)", {"refresh_token": "opaque"}]),
+                json!(["([redacted])", {"refresh_token": "[redacted]"}]),
+            ),
+            (
+                json!("Rejected Bearer opaque-value"),
+                json!("Rejected Bearer [redacted]"),
+            ),
+            (json!(42), json!(42)),
+            (Value::Null, Value::Null),
+        ] {
+            let message = sanitize_message(&body.to_string(), &[]);
+            assert_eq!(serde_json::from_str::<Value>(&message).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn redacts_known_request_credentials_even_without_token_prefixes() {
+        let secrets = [
+            "opaque-access",
+            "opaque-access-long",
+            "custom\"secret\\value",
+            "auth-code",
+            "",
+        ];
+        let body = json!({
+            "message": "Echoed opaque-access-long / opaque-access / custom\"secret\\value / auth-code",
+            "reason": "TOS_VIOLATION"
+        });
+        let message = sanitize_message(&body.to_string(), &secrets);
+        assert_eq!(
+            serde_json::from_str::<Value>(&message).unwrap(),
+            json!({
+                "message": "Echoed [redacted] / [redacted] / [redacted] / [redacted]",
+                "reason": "TOS_VIOLATION"
+            })
+        );
+        assert_eq!(
+            sanitize_message("Echoed opaque-access-long and custom\"secret\\value", &secrets),
+            "Echoed [redacted] and [redacted]"
+        );
+        let header = "Authorization: Bearer opaque-access-long\nAppeal: case-123";
+        let sanitized = sanitize_message(header, &secrets);
+        assert_eq!(sanitized, "Authorization: [redacted]\nAppeal: case-123");
+        assert_eq!(sanitize_message(&sanitized, &secrets), sanitized);
+    }
+
+    #[test]
+    fn preserves_full_non_json_errors_and_whitespace() {
+        let body = format!(
+            "HTTP 403: TOS_VIOLATION\r\n\t{}\nAppeal: https://example.test/appeal?case=123\n",
+            "Details: دسترسی محدود است. ".repeat(40)
+        );
+        assert_eq!(sanitize_message(&body, &[]), body);
+        assert_eq!(sanitize_message("", &[]), "");
+        assert_eq!(sanitize_message(" \n\t", &[]), " \n\t");
+        assert_eq!(
+            sanitize_message("<html><body>Forbidden</body></html>", &[]),
+            "<html><body>Forbidden</body></html>"
+        );
+    }
+
+    #[test]
+    fn redacts_plain_text_credentials_without_discarding_surrounding_details() {
+        let body = "Rejected (ya29.access), [1//refresh], jwt=eyJheader.payload.signature;\n\
+            Authorization: Bearer opaque-bearer\n\
+            client_secret=\"opaque secret\"; refresh_token='opaque refresh'\n\
+            access_token=opaque-query&case=123\n\
+            credential=GOCSPX-client-value; key=AIzaExampleKey\n\
+            Basic dXNlcjpwYXNz\n\
+            Appeal: https://example.test/appeal?case=123";
+        assert_eq!(
+            sanitize_message(body, &[]),
+            "Rejected ([redacted]), [[redacted]], jwt=[redacted];\n\
+            Authorization: [redacted]\n\
+            client_secret=\"[redacted]\"; refresh_token='[redacted]'\n\
+            access_token=[redacted]&case=123\n\
+            credential=[redacted]; key=[redacted]\n\
+            Basic [redacted]\n\
+            Appeal: https://example.test/appeal?case=123"
+        );
+    }
+
+    #[test]
+    fn redacts_credentials_in_malformed_json_as_text() {
+        let body = "{\"error\":\"denied\",\"access_token\":\"opaque-value\",\"detail\":\"(ya29.embedded)\"";
+        assert_eq!(
+            sanitize_message(body, &[]),
+            "{\"error\":\"denied\",\"access_token\":\"[redacted]\",\"detail\":\"([redacted])\""
+        );
+    }
+
+    #[test]
+    fn authentication_and_permission_denials_never_retry_an_endpoint() {
+        for status in [401, 403] {
+            for message in [
+                "invalid credentials".to_string(),
+                json!({"error": {"details": [{"reason": "TOS_VIOLATION"}]}}).to_string(),
+                "non-JSON permission denial".to_string(),
+            ] {
+                let error = GoogleError::Upstream { status, message };
+                assert!(!should_retry_endpoint(&error));
+            }
+        }
+        for status in [400, 404, 408, 429, 500, 502, 503] {
+            assert!(should_retry_endpoint(&GoogleError::Upstream {
+                status,
+                message: "other endpoint failure".to_string(),
+            }));
+        }
+        assert!(should_retry_endpoint(&GoogleError::Network(
+            "timeout".to_string()
+        )));
+    }
+
+    #[test]
+    fn inaccessible_projects_and_policy_denials_are_not_retried() {
+        for status in [401, 403] {
+            for message in [
+                "The project is not accessible".to_string(),
+                "HTTP 403: TOS_VIOLATION".to_string(),
+                json!({"error": {"details": [
+                    {"description": "details ".repeat(100)},
+                    {"reason": "TOS_VIOLATION"}
+                ]}}).to_string(),
+            ] {
+                assert!(!should_retry_endpoint(&GoogleError::Upstream { status, message }));
+            }
+        }
     }
 
     /// Decodes the percent encoding of a query part.
