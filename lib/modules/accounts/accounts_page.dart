@@ -86,7 +86,9 @@ class AccountsPage extends ReactiveGetView<AccountsController> {
                       Messages.accountsProxyTip.tr,
                       style: TextStyle(
                         fontSize: 12.5,
-                        color: context.palette.textSecondary,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white
+                            : context.palette.textPrimary,
                       ),
                     ),
                   ),

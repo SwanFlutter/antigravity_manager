@@ -353,9 +353,18 @@ class _QuotaBody extends StatelessWidget {
                               icon: Icons.open_in_new_rounded,
                               size: AppButtonSize.small,
                               variant: AppButtonVariant.primary,
-                              onPressed: () {
+                              onPressed: () async {
                                 final target = details.validationUrl ?? 'https://accounts.google.com';
-                                launchUrl(Uri.parse(target));
+                                debugPrint('[DEBUG] Verify Account button clicked. Target URL: $target');
+                                try {
+                                  debugPrint('[DEBUG] Attempting launchUrl for verification...');
+                                  final launched = await launchUrl(Uri.parse(target), mode: LaunchMode.externalApplication);
+                                  debugPrint('[DEBUG] launchUrl result: $launched');
+                                } catch (e, st) {
+                                  debugPrint('[DEBUG] launchUrl threw error: $e\n$st');
+                                  Clipboard.setData(ClipboardData(text: target));
+                                  debugPrint('[DEBUG] Fallback: Copied target URL to clipboard.');
+                                }
                               },
                             ),
                           if (details.appealUrl != null || details.isTosViolation)
@@ -364,9 +373,18 @@ class _QuotaBody extends StatelessWidget {
                               icon: Icons.gavel_rounded,
                               size: AppButtonSize.small,
                               variant: AppButtonVariant.secondary,
-                              onPressed: () {
+                              onPressed: () async {
                                 final target = details.appealUrl ?? 'https://forms.gle/hGzM9MEUv2azZsrb9';
-                                launchUrl(Uri.parse(target));
+                                debugPrint('[DEBUG] Submit Appeal button clicked. Target URL: $target');
+                                try {
+                                  debugPrint('[DEBUG] Attempting launchUrl for appeal...');
+                                  final launched = await launchUrl(Uri.parse(target), mode: LaunchMode.externalApplication);
+                                  debugPrint('[DEBUG] launchUrl result: $launched');
+                                } catch (e, st) {
+                                  debugPrint('[DEBUG] launchUrl threw error: $e\n$st');
+                                  Clipboard.setData(ClipboardData(text: target));
+                                  debugPrint('[DEBUG] Fallback: Copied appeal URL to clipboard.');
+                                }
                               },
                             ),
                           AppButton(

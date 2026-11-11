@@ -1,1 +1,1 @@
-{"settings.theme_mode":"light"}
+{"settings.theme_mode":"dark"}
